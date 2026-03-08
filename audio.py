@@ -45,12 +45,18 @@ def _load_vad():
     global _vad_model
     if _vad_model is None:
         import torch
-        model, utils = torch.hub.load(
+        result = torch.hub.load(
             repo_or_dir="snakers4/silero-vad",
             model="silero_vad",
             trust_repo=True,
         )
-        _vad_model = model
+        # API returns (model, utils) tuple or just model depending on version
+        if isinstance(result, tuple):
+            _vad_model = result[0]
+        else:
+            _vad_model = result
+        if _vad_model is None:
+            raise RuntimeError("torch.hub.load returned None for silero_vad")
     return _vad_model
 
 

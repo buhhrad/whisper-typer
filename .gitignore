@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 trends_results/
+whisper_typer_settings.json
+vad_error.log
