@@ -45,15 +45,10 @@ except ImportError:
 import settings as user_settings
 from config import (
     COLOR_AMBER,
-    COLOR_AMBER_DIM,
-    COLOR_BG,
     COLOR_BLUE,
-    COLOR_BORDER,
     COLOR_DROPDOWN_BG,
-    COLOR_DROPDOWN_FG,
     COLOR_GREEN,
     COLOR_RED,
-    COLOR_SURFACE,
     COLOR_TEXT,
     COLOR_TEXT_DIM,
     COLOR_GRIP,
@@ -66,10 +61,8 @@ from config import (
     STATE_RECORDING,
     STATE_TRANSCRIBING,
     STATE_TYPING,
-    WINDOW_HEIGHT,
-    WINDOW_WIDTH,
 )
-from widgets import PillButton, DropdownButton, MicIcon, VadToggle, LoadingBar, DurationBadge
+from widgets import DropdownButton, MicIcon, VadToggle, LoadingBar, DurationBadge
 
 # ── Win32 constants ───────────────────────────────────────────────────
 GWL_EXSTYLE = -20
@@ -130,7 +123,6 @@ class WhisperTyper:
 
         # Transcription queue — captures overlapping speech segments
         self._pending_audio = []
-        self._typing_in_progress = False
 
         # Snap-to-window state
         self._snap_hwnd = None
@@ -141,7 +133,6 @@ class WhisperTyper:
         self._snap_bar_h: int = 0
         self._snap_tk_hwnd: int = 0
         self._user32 = ctypes.windll.user32
-        self._snap_rect = self._RECT()  # reuse single struct for snap polling
 
         # Lazy imports — only load heavy modules when needed
         self._recorder = None
@@ -1013,7 +1004,6 @@ class WhisperTyper:
             self._mic_btn.set_state("transcribing", COLOR_BLUE)
             self._status.configure(text="Transcribing\u2026", fg=COLOR_BLUE)
             self._cancel_elapsed_timer()
-            self._transcribe_start = time.monotonic()
 
         elif state == STATE_TYPING:
             self._mic_btn.set_state("typing", COLOR_GREEN)
@@ -1236,7 +1226,6 @@ class WhisperTyper:
                 self._process_next_or_idle()
 
         elif kind == "typing_done":
-            self._typing_in_progress = False
             self._process_next_or_idle()
 
         elif kind == "audio_error":

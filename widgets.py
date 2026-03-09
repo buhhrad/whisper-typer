@@ -461,28 +461,6 @@ class MicIcon(tk.Canvas):
             if solid:
                 self.create_oval(cx - 2, cy - 7, cx + 2, cy + 1, fill=color, outline="")
 
-    def _draw_record(self, color: str, scale: float = 1.0):
-        """Draw a filled record circle with stroke outline, anti-aliased."""
-        stroke = _lighten(color, 40)
-        if _HAS_PIL:
-            def _draw(d, S):
-                cx, cy = self.SIZE * S // 2, self.SIZE * S // 2
-                s = self.SIZE * S / 36
-                r = 7 * s * scale
-                w = max(1, round(1.5 * S))
-                d.ellipse([cx - r - S, cy - r - S, cx + r + S, cy + r + S],
-                          outline=stroke, width=w)
-                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=color)
-            _aa_icon(self, self.SIZE, self.SIZE, _draw)
-        else:
-            self.delete("all")
-            cx, cy = self.SIZE // 2, self.SIZE // 2
-            s = self.SIZE / 36
-            r = 7 * s * scale
-            self.create_oval(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1,
-                             fill="", outline=stroke, width=1.5)
-            self.create_oval(cx - r, cy - r, cx + r, cy + r, fill=color, outline="")
-
     def _draw_dots(self, color: str, frame: int):
         """Draw animated transcribing dots with stroke outlines, anti-aliased."""
         stroke = _lighten(color, 40)
@@ -545,9 +523,6 @@ class MicIcon(tk.Canvas):
             self.create_line(cx - 6, cy + 1, cx - 6, cy + 5, cx + 6, cy + 5, cx + 6, cy + 1,
                              fill=color, width=1.2, joinstyle=tk.MITER)
 
-    _POP_STEPS = 5  # ~80ms at 16ms/frame
-    _POP_MS = 16
-
     def set_state(self, state: str, color: str):
         """Set icon state: 'idle', 'recording', 'transcribing', 'typing', 'loading'."""
         self._state = state
@@ -569,35 +544,6 @@ class MicIcon(tk.Canvas):
             self._draw_send(color)
         elif state == "loading":
             self._draw_mic(color, solid=False)
-
-    def _pop_to_record(self):
-        """Pop-bounce animation: record dot scales up then settles, then pulses."""
-        if self._state != "recording":
-            return
-        t = self._pop_step / self._POP_STEPS
-        # Overshoot bounce: scale up to 1.3x then ease back to 1.0x
-        if t < 0.5:
-            scale = 1.0 + 0.6 * (t * 2)  # 1.0 → 1.3
-        else:
-            scale = 1.3 - 0.3 * ((t - 0.5) * 2)  # 1.3 → 1.0
-        self._draw_record(self._color, scale=scale)
-        self._pop_step += 1
-        if self._pop_step <= self._POP_STEPS:
-            self._pulse_id = self.after(self._POP_MS, self._pop_to_record)
-        else:
-            # Pop done — keep pulsing the record dot (unmistakable "recording")
-            self._pulse_frame = 0
-            self._pulse_record_dot()
-
-    def _pulse_record_dot(self):
-        """Pulse the record dot — gentle scale breathing so it's clearly recording."""
-        if self._state != "recording":
-            return
-        t = self._pulse_frame * 0.12
-        scale = 0.85 + 0.15 * (0.5 + 0.5 * math.sin(t))  # 0.85x – 1.0x
-        self._draw_record(self._color, scale=scale)
-        self._pulse_frame += 1
-        self._pulse_id = self.after(40, self._pulse_record_dot)
 
     _FADE_IDLE_STEPS = 6  # ~240ms fade
 
@@ -625,16 +571,6 @@ class MicIcon(tk.Canvas):
         self._draw_mic(self._color, _brightness=brightness, solid=True)
         self._pulse_frame += 1
         self._pulse_id = self.after(40, self._pulse_mic_breathe)
-
-    def _pulse_mic_slow(self):
-        """Slow gentle pulse for transcribing state — mic stays solid, subtle breathing."""
-        if self._state not in ("transcribing", "typing"):
-            return
-        t = self._pulse_frame * 0.06  # slower than recording
-        brightness = 0.7 + 0.3 * (0.5 + 0.5 * math.sin(t))  # 0.7 – 1.0
-        self._draw_mic(self._color, _brightness=brightness, solid=True)
-        self._pulse_frame += 1
-        self._pulse_id = self.after(50, self._pulse_mic_slow)
 
     def _pulse_dots(self):
         """Animate the transcribing dots smoothly."""
@@ -686,17 +622,6 @@ class VadToggle(tk.Canvas):
     _BAR_GAP = 2
     # Resting bar heights — asymmetrical, stylized
     _REST_HEIGHTS = [4, 9, 16, 7, 11]
-    # Animation patterns — organic, uneven movement
-    _ANIM_PATTERNS = [
-        [5, 14, 8, 16, 6],
-        [10, 6, 16, 4, 14],
-        [4, 16, 5, 12, 8],
-        [14, 4, 11, 16, 5],
-        [7, 12, 4, 8, 16],
-        [16, 7, 14, 5, 4],
-        [8, 16, 6, 14, 10],
-        [5, 8, 16, 10, 7],
-    ]
 
     def __init__(self, parent, command=None, bg: str = "#0e0e1a",
                  off_color: str = "#4a4a6a", on_color: str = "#40d060", **kwargs):
@@ -796,21 +721,6 @@ class VadToggle(tk.Canvas):
         else:
             color = self._off_color
         self._draw_bars(self._REST_HEIGHTS, color, solid=True)
-
-    def _draw_on(self, frame: int):
-        """Draw animated equalizer bars."""
-        pattern = self._ANIM_PATTERNS[frame % len(self._ANIM_PATTERNS)]
-        self._draw_bars(pattern, self._on_color)
-
-    def _blend(self, bg_hex: str, fg_hex: str, alpha: float) -> str:
-        """Blend fg over bg by alpha."""
-        br, bg_, bb = _hex_to_rgb(bg_hex)
-        fr, fg_, fb = _hex_to_rgb(fg_hex)
-        return _rgb_to_hex(
-            int(br + (fr - br) * alpha),
-            int(bg_ + (fg_ - bg_) * alpha),
-            int(bb + (fb - bb) * alpha),
-        )
 
     def _on_enter(self, e=None):
         if self._loading:
@@ -937,11 +847,6 @@ class VadToggle(tk.Canvas):
         """Change the active color — takes effect on next animation frame."""
         self._on_color = color
 
-    def _ensure_anim_running(self):
-        """Start the unified animation loop if not already running."""
-        if self._anim_id is None:
-            self._animate_unified()
-
     def _animate_unified(self):
         """Single animation loop — smoothly blends between intensity levels.
 
@@ -1015,7 +920,6 @@ class VadToggle(tk.Canvas):
     _BAR_FREQS = [0.08, 0.11, 0.06, 0.09, 0.13]
     _BAR_PHASES = [0.0, 2.1, 0.7, 3.5, 1.3]
     _BAR_AMPS = [11, 14, 10, 13, 11]
-    _BAR_BASES = [4, 3, 5, 4, 3]
 
 class LoadingBar(tk.Canvas):
     """Indeterminate loading bar — rounded pill shape, sliding highlight."""

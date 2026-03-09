@@ -31,7 +31,7 @@ WINDOW_WIDTH = 300
 WINDOW_HEIGHT = 50
 POLL_INTERVAL_MS = 50     # main loop polling interval
 
-# Theme colors (Cairn dark theme — refined)
+# Theme colors (dark theme)
 COLOR_BG = "#080810"
 COLOR_SURFACE = "#0c0c1a"
 COLOR_BORDER = "#1a1a30"
