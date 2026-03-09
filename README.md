@@ -8,9 +8,9 @@
           T Y P E R
 </pre>
 
-**Local voice typing that lives in your terminal.**
+**Local voice typing for your entire computer.**
 
-Offline voice-to-text that runs entirely on your machine.
+Offline voice-to-text that works anywhere — type into any app with your voice, or talk directly to CLI tools like Claude Code, Codex, and Warp.
 <br>
 <img src="demo.gif" width="172" />
 <br><br><br>
@@ -27,9 +27,11 @@ Offline voice-to-text that runs entirely on your machine.
 
 ## Why Whisper Typer?
 
-A small floating widget that snaps to your terminal as a transparent overlay and transcribes your speech locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Your audio never leaves your machine.
+A small floating widget that transcribes your speech locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and types it wherever you need it. Use it to voice-type into any application, or snap it to your terminal to talk directly to CLI agents like Claude Code, Codex, or any command-line tool.
 
-- **Terminal-native** — Snaps to Windows Terminal as a transparent overlay and follows the window
+- **Works everywhere** — Voice-type into any focused window on your computer
+- **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, and restores your focus. Talk to CLI tools without switching windows.
+- **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay and follows the window
 - **Lightweight** — Pure Python, no Electron. Starts in seconds.
 - **Queued transcription** — Keeps recording while transcribing so pauses in your speech don't lose words
 - **Fully offline** — No accounts, no cloud, no internet required
@@ -43,12 +45,11 @@ A small floating widget that snaps to your terminal as a transparent overlay and
 - **Queued Transcription** — Overlapping speech segments are queued and processed sequentially — no speech is lost
 
 ### Output Routing
-- **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus
-- **Paste Only** — Copies to clipboard, sends `Ctrl+V` to the focused window
+- **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus. Great for multitasking with CLI agents.
+- **Paste Only** — Copies to clipboard and sends `Ctrl+V` to whatever window is focused
 - **Clipboard Only** — Copies to clipboard, nothing else
 
 ### Interface
-- **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay, follows the window as you move or resize it
 - **Always-on-Top** — Stays visible while you work in other apps
 - **System Tray** — Minimizes to tray, stays out of the way
 - **Duration Badge** — Shows recording time with a smooth animated pill
