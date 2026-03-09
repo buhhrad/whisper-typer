@@ -20,12 +20,14 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 </div>
 
 ---
-[Recording 2026-03-09 022733.webm](https://github.com/user-attachments/assets/88890405-3c4d-4c15-bb77-7bea53b298bb)
+
 
 
 ## What is this?
 
 A tiny, always-on-top floating widget that transcribes your speech in real-time using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and routes the text wherever you need it — your terminal, clipboard, or any focused window.
+
+[Recording 2026-03-09 022733.webm](https://github.com/user-attachments/assets/88890405-3c4d-4c15-bb77-7bea53b298bb)
 
 It snaps to your terminal as a transparent overlay and stays out of the way until you need it.
 
