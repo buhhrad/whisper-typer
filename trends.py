@@ -23,7 +23,20 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+
+# Fix pytrends + urllib3 2.x compatibility (method_whitelist → allowed_methods)
+import urllib3
+if not hasattr(urllib3.util.retry.Retry.__init__, '_patched'):
+    _orig_init = urllib3.util.retry.Retry.__init__
+    def _patched_init(self, *args, **kwargs):
+        if 'method_whitelist' in kwargs:
+            kwargs['allowed_methods'] = kwargs.pop('method_whitelist')
+        return _orig_init(self, *args, **kwargs)
+    _patched_init._patched = True
+    urllib3.util.retry.Retry.__init__ = _patched_init
+
 from pytrends.request import TrendReq
 
 # ── Config ────────────────────────────────────────────────────────────
@@ -78,6 +91,23 @@ def _init_pytrends() -> TrendReq:
     return TrendReq(hl="en-US", tz=360, retries=3, backoff_factor=1.0)
 
 
+def _make_json_safe(obj):
+    """Recursively convert pandas/numpy objects so json.dump can handle them."""
+    if isinstance(obj, dict):
+        return {str(k): _make_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_make_json_safe(v) for v in obj]
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if hasattr(obj, 'isoformat'):
+        return obj.isoformat()
+    return obj
+
+
 def _save_results(name: str, data: dict) -> Path:
     """Save results as JSON to trends_results/."""
     RESULTS_DIR.mkdir(exist_ok=True)
@@ -85,7 +115,7 @@ def _save_results(name: str, data: dict) -> Path:
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "" for c in name).strip()
     path = RESULTS_DIR / f"{safe_name}_{ts}.json"
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        json.dump(_make_json_safe(data), f, indent=2, ensure_ascii=False, default=str)
     return path
 
 
@@ -154,7 +184,7 @@ def cmd_research(keywords: list[str], geo: str = GEO, timeframe: str = TIMEFRAME
 
                 print(f"  {kw}: current={current}, peak={peak}, trend={trend}")
 
-        results["interest_over_time"] = iot.to_dict()
+        results["interest_over_time"] = {str(k): v for k, v in iot.to_dict().items()}
     else:
         print(f"  {C_DIM}No data available.{C_RESET}")
     print()
@@ -206,29 +236,31 @@ def cmd_research(keywords: list[str], geo: str = GEO, timeframe: str = TIMEFRAME
 
     # ── Related topics ────────────────────────────────────────────
     print(f"{C_BOLD}Related Topics{C_RESET}")
-    topics = _safe_call(pt.related_topics)
     results["related_topics"] = {}
+    try:
+        topics = _safe_call(pt.related_topics)
+        if topics:
+            for kw in keywords:
+                if kw not in topics:
+                    continue
+                data = topics[kw]
 
-    if topics:
-        for kw in keywords:
-            if kw not in topics:
-                continue
-            data = topics[kw]
-
-            rising = data.get("rising")
-            if rising is not None and not rising.empty:
-                print(f"\n  {C_GREEN}Rising topics for '{kw}':{C_RESET}")
-                for _, row in rising.head(10).iterrows():
-                    title = row.get("topic_title", "?")
-                    val = row.get("value", 0)
-                    topic_type = row.get("topic_type", "")
-                    if val >= 5000:
-                        label = f"{C_RED}{C_BOLD}BREAKOUT{C_RESET}"
-                    else:
-                        label = f"{C_GREEN}+{int(val)}%{C_RESET}"
-                    print(f"    {label:>25}  {title} {C_DIM}({topic_type}){C_RESET}")
-    else:
-        print(f"  {C_DIM}No related topics data.{C_RESET}")
+                rising = data.get("rising")
+                if rising is not None and not rising.empty:
+                    print(f"\n  {C_GREEN}Rising topics for '{kw}':{C_RESET}")
+                    for _, row in rising.head(10).iterrows():
+                        title = row.get("topic_title", "?")
+                        val = row.get("value", 0)
+                        topic_type = row.get("topic_type", "")
+                        if val >= 5000:
+                            label = f"{C_RED}{C_BOLD}BREAKOUT{C_RESET}"
+                        else:
+                            label = f"{C_GREEN}+{int(val)}%{C_RESET}"
+                        print(f"    {label:>25}  {title} {C_DIM}({topic_type}){C_RESET}")
+        else:
+            print(f"  {C_DIM}No related topics data.{C_RESET}")
+    except Exception as e:
+        print(f"  {C_DIM}Related topics unavailable ({e}).{C_RESET}")
     print()
 
     # ── Interest by region ────────────────────────────────────────

@@ -19,6 +19,10 @@ _DEFAULTS = {
     "window_y": None,
     "ptt_hotkey": ["ctrl", "shift", "space"],  # push-to-talk key combo
     "vad_hotkey": None,       # VAD toggle key combo, or None for no binding
+    "mute_hotkey": ["ctrl", "shift", "m"],    # mute toggle key combo
+    "whisper_model": None,    # model size, or None for config.py default
+    "whisper_device": None,   # "cuda" or "cpu", or None for config.py default
+    "whisper_language": None, # language code, or None for config.py default
 }
 
 

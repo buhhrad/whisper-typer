@@ -123,6 +123,7 @@ class WhisperTyper:
 
         # Transcription queue — captures overlapping speech segments
         self._pending_audio = []
+        self._muted = False
 
         # Snap-to-window state
         self._snap_hwnd = None
@@ -169,7 +170,7 @@ class WhisperTyper:
             row, width=8, height=30, bg=_BAR_BG,
             highlightthickness=0,
         )
-        grip_l.pack(side=tk.LEFT, fill=tk.Y, padx=(2, 0))
+        # Grip starts hidden — only packed when unsnapped
 
         # Mic icon (left) — hidden during loading
         self._mic_btn = MicIcon(row, command=self._on_mic_click, bg=_BTN_BG)
@@ -177,7 +178,7 @@ class WhisperTyper:
 
         # Loading bar — replaces mic + vad icons during boot
         self._loading_bar = LoadingBar(row, bg=_BTN_BG, color=COLOR_AMBER, track_color="#1a1a2a")
-        self._loading_bar.pack(side=tk.LEFT, padx=(2, 3))
+        self._loading_bar.pack(side=tk.LEFT, padx=2)
 
         # Duration badge — rounded pill between mic and VAD, visible during recording
         # Packed at width=0 initially — animates open/closed smoothly
@@ -521,6 +522,7 @@ class WhisperTyper:
                 self._hotkey_listener.set_combos(
                     ptt_combo=self._settings.get("ptt_hotkey"),
                     vad_combo=self._settings.get("vad_hotkey"),
+                    mute_combo=self._settings.get("mute_hotkey"),
                 )
 
         popup.bind("<KeyPress>", _on_key)
@@ -535,7 +537,15 @@ class WhisperTyper:
             self._hotkey_listener.set_combos(
                 ptt_combo=self._settings.get("ptt_hotkey"),
                 vad_combo=self._settings.get("vad_hotkey"),
+                mute_combo=self._settings.get("mute_hotkey"),
             )
+
+    def _on_whisper_setting_changed(self, key: str, value: str, restart_label: tk.Label) -> None:
+        """Save a whisper setting and show restart hint."""
+        self._settings[key] = value
+        import settings as user_settings
+        user_settings.save(self._settings)
+        restart_label.configure(text="Restart to apply")
 
     def _open_settings(self) -> None:
         """Open settings popup — translucent, rounded, wider."""
@@ -597,6 +607,87 @@ class WhisperTyper:
             hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
             font=_FONT_MONO,
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # ── Whisper section ──
+        tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
+        tk.Label(
+            p, text="WHISPER", font=_FONT_SMALL,
+            fg=_FG_DIM, bg=_PANEL_BG, anchor="w",
+        ).pack(fill=tk.X, pady=(0, 3))
+
+        _MODEL_OPTIONS = [
+            "tiny", "base", "small", "medium",
+            "large-v3", "large-v3-turbo",
+        ]
+        _DEVICE_OPTIONS = ["cuda", "cpu"]
+        _LANG_OPTIONS = [
+            "auto", "en", "es", "fr", "de", "pt", "zh",
+            "ja", "ko", "it", "nl", "ru", "pl", "ar", "hi",
+        ]
+
+        import config as _cfg
+        cur_model = self._settings.get("whisper_model") or _cfg.WHISPER_MODEL
+        cur_device = self._settings.get("whisper_device") or _cfg.WHISPER_DEVICE
+        cur_lang = self._settings.get("whisper_language") or _cfg.WHISPER_LANGUAGE or "auto"
+
+        model_var = tk.StringVar(value=cur_model)
+        device_var = tk.StringVar(value=cur_device)
+        lang_var = tk.StringVar(value=cur_lang)
+
+        # MODEL row
+        model_row = tk.Frame(p, bg=_PANEL_BG)
+        model_row.pack(fill=tk.X, pady=2)
+        tk.Label(
+            model_row, text="MODEL", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=5, anchor="w",
+        ).pack(side=tk.LEFT)
+        DropdownButton(
+            model_row, textvariable=model_var, values=_MODEL_OPTIONS,
+            bg=COLOR_DROPDOWN_BG, fg=_FG,
+            hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
+            font=_FONT_MONO,
+            on_change=lambda: self._on_whisper_setting_changed(
+                "whisper_model", model_var.get(), restart_label),
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # GPU row
+        gpu_row = tk.Frame(p, bg=_PANEL_BG)
+        gpu_row.pack(fill=tk.X, pady=2)
+        tk.Label(
+            gpu_row, text="GPU", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=5, anchor="w",
+        ).pack(side=tk.LEFT)
+        DropdownButton(
+            gpu_row, textvariable=device_var, values=_DEVICE_OPTIONS,
+            bg=COLOR_DROPDOWN_BG, fg=_FG,
+            hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
+            font=_FONT_MONO,
+            on_change=lambda: self._on_whisper_setting_changed(
+                "whisper_device", device_var.get(), restart_label),
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # LANG row
+        lang_row = tk.Frame(p, bg=_PANEL_BG)
+        lang_row.pack(fill=tk.X, pady=2)
+        tk.Label(
+            lang_row, text="LANG", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=5, anchor="w",
+        ).pack(side=tk.LEFT)
+        DropdownButton(
+            lang_row, textvariable=lang_var, values=_LANG_OPTIONS,
+            bg=COLOR_DROPDOWN_BG, fg=_FG,
+            hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
+            font=_FONT_MONO,
+            on_change=lambda: self._on_whisper_setting_changed(
+                "whisper_language", lang_var.get(), restart_label),
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # "Restart to apply" hint — hidden until a whisper setting changes
+        restart_label = tk.Label(
+            p, text="", font=_FONT_SMALL,
+            fg=COLOR_AMBER, bg=_PANEL_BG, anchor="w",
+        )
+        restart_label.pack(fill=tk.X, pady=(2, 0))
 
         # ── Keybinds section ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
@@ -663,6 +754,34 @@ class WhisperTyper:
         vad_label.bind("<Leave>", lambda e: vad_label.configure(bg=_KB_BG))
         vad_clear.bind("<Enter>", lambda e: vad_clear.configure(fg=COLOR_RED))
         vad_clear.bind("<Leave>", lambda e: vad_clear.configure(fg=_FG_DIM))
+
+        # Mute keybind
+        mute_row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
+        mute_row.pack(fill=tk.X, pady=2)
+        tk.Label(
+            mute_row, text="MUTE", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
+        ).pack(side=tk.LEFT)
+        mute_combo = self._settings.get("mute_hotkey")
+        mute_label = tk.Label(
+            mute_row, text=self._format_hotkey(mute_combo),
+            font=_FONT_MONO, fg=_FG if mute_combo else _FG_DIM,
+            bg=_KB_BG, padx=6, pady=2, anchor="w",
+        )
+        mute_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        mute_clear = tk.Label(
+            mute_row, text="\u00d7", font=_FONT_BODY,
+            fg=_FG_DIM, bg=_PANEL_BG, padx=4, cursor="arrow",
+        )
+        mute_clear.pack(side=tk.RIGHT)
+        mute_label.bind("<ButtonRelease-1>",
+                       lambda e: self._start_keybind_capture(mute_label, "mute_hotkey"))
+        mute_clear.bind("<ButtonRelease-1>",
+                       lambda e: self._clear_keybind(mute_label, "mute_hotkey"))
+        mute_label.bind("<Enter>", lambda e: mute_label.configure(bg=_KB_HOVER))
+        mute_label.bind("<Leave>", lambda e: mute_label.configure(bg=_KB_BG))
+        mute_clear.bind("<Enter>", lambda e: mute_clear.configure(fg=COLOR_RED))
+        mute_clear.bind("<Leave>", lambda e: mute_clear.configure(fg=_FG_DIM))
 
         # ── Toggles section ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
@@ -841,7 +960,7 @@ class WhisperTyper:
         if not self._transparent_mode:
             self._set_transparency(True)
         for g in self._grips:
-            g.configure(width=0)
+            g.pack_forget()
         # Resize window after hiding grips, then store snapped dimensions
         self._resize_window()
         self._snap_bar_w = self.root.winfo_width()
@@ -860,10 +979,13 @@ class WhisperTyper:
         if self._snap_id:
             self.root.after_cancel(self._snap_id)
             self._snap_id = None
-        # Show grips when unsnapping — set width first, then toggle transparency
-        # which re-renders everything (including grip dots) with the correct bg
+        # Show grips when unsnapping — pack at left edge before all other widgets
         for g in self._grips:
-            g.configure(width=8)
+            g.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+            # Move to front of pack order
+            first_child = self._bar_row.pack_slaves()[0] if self._bar_row.pack_slaves() else None
+            if first_child and first_child is not g:
+                g.pack(side=tk.LEFT, fill=tk.Y, padx=2, before=first_child)
         if self._transparent_mode:
             self._set_transparency(False)  # redraws grip dots with solid bg
         else:
@@ -900,9 +1022,9 @@ class WhisperTyper:
             rect = self._RECT()
             self._user32.GetWindowRect(self._snap_hwnd, ctypes.byref(rect))
 
-            # Center horizontally on terminal, flush with bottom
+            # Center horizontally on terminal, vertically in bottom status area
             x = rect.left + (rect.right - rect.left - self._snap_bar_w) // 2
-            y = rect.bottom - self._snap_bar_h - 16
+            y = rect.bottom - self._snap_bar_h - 8
             if x != self._snap_last_x or y != self._snap_last_y:
                 self._snap_last_x = x
                 self._snap_last_y = y
@@ -939,20 +1061,26 @@ class WhisperTyper:
         from hotkeys import HotkeyListener
         ptt = self._settings.get("ptt_hotkey") or ["ctrl", "shift", "space"]
         vad = self._settings.get("vad_hotkey")
+        mute = self._settings.get("mute_hotkey") or ["ctrl", "shift", "m"]
         self._hotkey_listener = HotkeyListener(
             self._event_queue, ptt_combo=ptt, vad_combo=vad,
+            mute_combo=mute,
         )
         self._hotkey_listener.start()
 
         # Apply config overrides BEFORE spawning the preload thread (avoids race)
-        if self._model_override:
-            import config
-            config.WHISPER_MODEL = self._model_override
-        if self._device_override:
-            import config
-            config.WHISPER_DEVICE = self._device_override
-            if self._device_override == "cuda":
-                config.WHISPER_COMPUTE = "float16"
+        # Priority: CLI args > saved settings > config.py defaults
+        import config
+        model = self._model_override or self._settings.get("whisper_model")
+        device = self._device_override or self._settings.get("whisper_device")
+        language = self._settings.get("whisper_language")
+        if model:
+            config.WHISPER_MODEL = model
+        if device:
+            config.WHISPER_DEVICE = device
+            config.WHISPER_COMPUTE = "float16" if device == "cuda" else "int8"
+        if language:
+            config.WHISPER_LANGUAGE = language if language != "auto" else None
 
         # Preload whisper model in background
         def _preload():
@@ -974,7 +1102,7 @@ class WhisperTyper:
             self._snap_tk_hwnd = int(self.root.wm_frame(), 16)
             # Hide grips when snapped and resize
             for g in self._grips:
-                g.configure(width=0)
+                g.pack_forget()
             self._resize_window()
             self._snap_bar_w = self.root.winfo_width()
             self._snap_bar_h = self.root.winfo_height()
@@ -1043,9 +1171,19 @@ class WhisperTyper:
     # ── Button handlers ───────────────────────────────────────────
 
     def _on_mic_click(self) -> None:
-        """Toggle recording on mic button click (Manual mode)."""
+        """Toggle mute when VAD active, or toggle recording in manual mode."""
         if not self._model_ready:
             return
+        # VAD mode: clicking mic toggles mute
+        if self._recorder and self._recorder.vad_active:
+            self._muted = not self._muted
+            self._mic_btn.set_muted(self._muted)
+            if self._muted:
+                self._status.configure(text="Muted", fg=COLOR_RED)
+            else:
+                self._status.configure(text="Listening (VAD)\u2026", fg=COLOR_TEXT)
+            return
+        # Manual mode: toggle recording
         if self._state == STATE_IDLE:
             if self._recorder:
                 self._recorder.start_recording()
@@ -1062,6 +1200,8 @@ class WhisperTyper:
         if self._recorder.vad_active:
             self._recorder.disable_vad()
             self._vad_btn.set_active(False)
+            self._muted = False
+            self._mic_btn.set_muted(False)
             if self._state == STATE_IDLE:
                 self._status.configure(text="Ready", fg=COLOR_TEXT)
         else:
@@ -1135,10 +1275,10 @@ class WhisperTyper:
             self._loading_bar.pack_forget()
             self._mic_btn.set_disabled(False)
             self._mic_btn.set_state("idle", COLOR_TEXT_DIM)
-            self._mic_btn.pack(side=tk.LEFT, padx=(2, 3))
+            self._mic_btn.pack(side=tk.LEFT, padx=(4, 2))
             # Pre-pack badge at width=0 so pack order is: mic → badge → ... → vad
-            self._duration_badge.pack(side=tk.LEFT, padx=(2, 0))
-            self._vad_btn.pack(side=tk.RIGHT, padx=(0, 2))
+            self._duration_badge.pack(side=tk.LEFT, padx=0)
+            self._vad_btn.pack(side=tk.RIGHT, padx=2)
             # Re-render all icons with correct bg (especially in transparent mode)
             self._draw_close_icon(self._close_color)
             self._draw_gear_icon(COLOR_TEXT_DIM)
@@ -1167,8 +1307,20 @@ class WhisperTyper:
         elif kind == "vad_toggle":
             self._on_vad_toggle()
 
+        elif kind == "mute_toggle":
+            # Only toggle mute — don't fall through to manual recording
+            if self._recorder and self._recorder.vad_active:
+                self._muted = not self._muted
+                self._mic_btn.set_muted(self._muted)
+                if self._muted:
+                    self._status.configure(text="Muted", fg=COLOR_RED)
+                else:
+                    self._status.configure(text="Listening (VAD)\u2026", fg=COLOR_TEXT)
+
         elif kind == "vad_speech_start":
-            if self._state == STATE_IDLE and time.time() >= self._vad_cooldown_until:
+            if self._muted:
+                pass  # ignore speech when muted
+            elif self._state == STATE_IDLE and time.time() >= self._vad_cooldown_until:
                 self._set_state(STATE_RECORDING)
                 self._vad_btn.set_recording(True)
             elif self._state in (STATE_TRANSCRIBING, STATE_TYPING):

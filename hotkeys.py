@@ -59,6 +59,7 @@ class HotkeyListener:
 
     PTT events: ("hotkey_press",) / ("hotkey_release",)
     VAD events: ("vad_toggle",)
+    Mute events: ("mute_toggle",)
     """
 
     def __init__(
@@ -66,6 +67,7 @@ class HotkeyListener:
         event_queue: queue.Queue,
         ptt_combo: list[str] | set[str] | None = None,
         vad_combo: list[str] | set[str] | None = None,
+        mute_combo: list[str] | set[str] | None = None,
     ):
         self._queue = event_queue
         self._pressed: set[str] = set()
@@ -80,17 +82,24 @@ class HotkeyListener:
         self._vad_combo = _normalize_combo(vad_combo)
         self._vad_fired = False  # prevent repeat-fire while held
 
+        # Mute toggle combo state
+        self._mute_combo = _normalize_combo(mute_combo)
+        self._mute_fired = False
+
     def set_combos(
         self,
         ptt_combo: list[str] | set[str] | None = None,
         vad_combo: list[str] | set[str] | None = None,
+        mute_combo: list[str] | set[str] | None = None,
     ) -> None:
         """Update combos at runtime (no restart needed)."""
         self._ptt_combo = _normalize_combo(ptt_combo)
         self._vad_combo = _normalize_combo(vad_combo)
+        self._mute_combo = _normalize_combo(mute_combo)
         # Reset state
         self._ptt_active = False
         self._vad_fired = False
+        self._mute_fired = False
 
     def start(self) -> None:
         """Start the hotkey listener in a daemon thread."""
@@ -139,6 +148,12 @@ class HotkeyListener:
                 self._vad_fired = True
                 self._queue.put(("vad_toggle",))
 
+        # ── Mute combo (toggle) ──
+        if self._mute_combo and not self._mute_fired:
+            if self._mute_combo.issubset(self._pressed):
+                self._mute_fired = True
+                self._queue.put(("mute_toggle",))
+
     def _on_release(self, key) -> None:
         name = self._normalize(key)
         if name is None:
@@ -152,5 +167,9 @@ class HotkeyListener:
         # VAD — allow re-fire after any combo key is released
         if self._vad_combo and self._vad_fired and name in self._vad_combo:
             self._vad_fired = False
+
+        # Mute — allow re-fire after any combo key is released
+        if self._mute_combo and self._mute_fired and name in self._mute_combo:
+            self._mute_fired = False
 
         self._pressed.discard(name)

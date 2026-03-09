@@ -389,6 +389,7 @@ class MicIcon(tk.Canvas):
         self._color = "#e0a820"
         self._hover = False
         self._disabled = False
+        self._muted = False
         self._pulse_id: str | None = None
         self._pulse_frame = 0
         self._photo = None  # PIL anti-aliased render reference
@@ -460,6 +461,48 @@ class MicIcon(tk.Canvas):
             self.create_line(cx - 3, cy + 9, cx + 3, cy + 9, fill=stroke, width=1.5)
             if solid:
                 self.create_oval(cx - 2, cy - 7, cx + 2, cy + 1, fill=color, outline="")
+
+    def _draw_mic_muted(self, color: str):
+        """Draw mic icon with a diagonal slash indicating mute."""
+        stroke = _lighten(color, 40)
+        slash_color = "#e84040"  # red slash
+        if _HAS_PIL:
+            def _draw(d, S):
+                cx, cy = self.SIZE * S // 2, self.SIZE * S // 2
+                w = max(1, round(1.5 * S))
+                # Draw the mic outline (dimmed)
+                d.ellipse([cx - 3*S, cy - 8*S, cx + 3*S, cy + 2*S], outline=stroke, width=w)
+                d.arc([cx - 6*S, cy - 4*S, cx + 6*S, cy + 5*S],
+                      start=0, end=180, fill=stroke, width=w)
+                d.line([(cx, cy + 5*S), (cx, cy + 9*S)], fill=stroke, width=w)
+                d.line([(cx - 3*S, cy + 9*S), (cx + 3*S, cy + 9*S)], fill=stroke, width=w)
+                # Diagonal slash (bottom-left to top-right)
+                sw = max(2, round(2 * S))
+                d.line([(cx - 7*S, cy + 7*S), (cx + 7*S, cy - 7*S)],
+                       fill=slash_color, width=sw)
+            _aa_icon(self, self.SIZE, self.SIZE, _draw)
+            self._mic_base_img = None  # don't cache muted state
+        else:
+            self.delete("all")
+            cx, cy = self.SIZE // 2, self.SIZE // 2
+            self.create_oval(cx - 3, cy - 8, cx + 3, cy + 2, fill="", outline=stroke, width=1.5)
+            self.create_arc(cx - 6, cy - 4, cx + 6, cy + 5,
+                            start=180, extent=180, style="arc", outline=stroke, width=1.5)
+            self.create_line(cx, cy + 5, cx, cy + 9, fill=stroke, width=1.5)
+            self.create_line(cx - 3, cy + 9, cx + 3, cy + 9, fill=stroke, width=1.5)
+            self.create_line(cx - 7, cy + 7, cx + 7, cy - 7, fill=slash_color, width=2)
+
+    def set_muted(self, muted: bool):
+        """Toggle mute state — draws slash over mic."""
+        self._muted = muted
+        self._stop_pulse()
+        self._mic_base_img = None
+        if muted:
+            self._state = "muted"
+            self._draw_mic_muted(self._color)
+        else:
+            self._state = "idle"
+            self._draw_mic(self._color, solid=False)
 
     def _draw_dots(self, color: str, frame: int):
         """Draw animated transcribing dots with stroke outlines, anti-aliased."""
@@ -752,17 +795,19 @@ class VadToggle(tk.Canvas):
     _POP_PEAK_H = 24  # max bar height during pop
 
     def set_active(self, active: bool):
-        """Turn VAD on/off with pop-bounce animation."""
+        """Turn VAD on/off."""
         self._active = active
         self._recording = False
         self._processing = False
-        self._intensity = 0.0
-        self._target_intensity = 0.0
         self._stop_anim()
         if active:
-            self._pop_step = 0
-            self._pop_activate()
+            # Static rest bars — no animation while just listening
+            self._intensity = 0.0
+            self._target_intensity = 0.0
+            self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
         else:
+            self._intensity = 0.0
+            self._target_intensity = 0.0
             self._pop_step = 0
             self._pop_deactivate()
 
@@ -787,7 +832,9 @@ class VadToggle(tk.Canvas):
             self._anim_id = self.after(self._ANIM_MS, self._pop_activate)
         else:
             self._anim_id = None
-            self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
+            # Transition into gentle listening animation
+            self._target_intensity = 0.15
+            self._animate_unified()
 
     def _pop_deactivate(self):
         """Bars shrink down then settle to outline resting."""
@@ -814,6 +861,8 @@ class VadToggle(tk.Canvas):
 
     # Intensity lerp speed — how fast intensity transitions per frame
     _LERP_SPEED = 0.12  # smooth ~10-frame blend
+
+    _LISTEN_INTENSITY = 0.15  # gentle breathing when VAD is listening
 
     def set_recording(self, recording: bool):
         """Start/stop the equalizer animation (when speech detected)."""
@@ -878,11 +927,15 @@ class VadToggle(tk.Canvas):
         self._anim_frame += 1
         self._anim_id = self.after(self._ANIM_MS, self._animate_unified)
 
+    _MAX_BAR_H = max(_REST_HEIGHTS)  # 16 — hard ceiling for all animations
+
     def _calc_blended_heights(self, t: int, intensity: float) -> list[int]:
         """Calculate bar heights blended by intensity.
 
         At intensity 0 = rest heights, at 1.0 = full recording animation.
-        Uses layered sine waves with heavy randomness for organic movement.
+        Bars oscillate both above and below rest position but never exceed
+        the tallest idle bar (_MAX_BAR_H). Uses layered sine waves with
+        heavy randomness for organic movement.
         """
         heights = []
         for i in range(self._NUM_BARS):
@@ -893,13 +946,13 @@ class VadToggle(tk.Canvas):
             h2 = math.sin(t * f * 1.7 + p * 0.5) * 0.35
             h3 = math.sin(t * f * 2.9 + p * 1.3) * 0.2
             h4 = math.sin(t * f * 0.3 + p * 2.7) * 0.25  # slow drift
-            # Strong random jitter — makes each frame unique
-            jitter = random.uniform(-0.35, 0.35) * intensity
+            # Subtle random jitter — organic variation without flickering
+            jitter = random.uniform(-0.12, 0.12) * intensity
             combined = (primary + h2 + h3 + h4 + jitter) / 1.8
-            # Amplitude scales with intensity
+            # Amplitude scales with intensity — oscillates both directions
             amp = self._BAR_AMPS[i] * intensity
-            h = int(self._REST_HEIGHTS[i] + amp * (0.5 + 0.5 * combined))
-            heights.append(max(2, h))
+            h = int(self._REST_HEIGHTS[i] + amp * combined)
+            heights.append(max(2, min(self._MAX_BAR_H, h)))
         return heights
 
     def set_loading(self, loading: bool, dim_color: str | None = None):
@@ -919,7 +972,8 @@ class VadToggle(tk.Canvas):
     # Per-bar oscillation params for organic, asymmetrical movement
     _BAR_FREQS = [0.08, 0.11, 0.06, 0.09, 0.13]
     _BAR_PHASES = [0.0, 2.1, 0.7, 3.5, 1.3]
-    _BAR_AMPS = [11, 14, 10, 13, 11]
+    # Proportional to headroom — bars stay within idle silhouette (max 16px)
+    _BAR_AMPS = [3, 6, 4, 5, 4]
 
 class LoadingBar(tk.Canvas):
     """Indeterminate loading bar — rounded pill shape, sliding highlight."""
