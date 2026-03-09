@@ -19,13 +19,8 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 
 </div>
 
-
-
-https://github.com/user-attachments/assets/2a795b60-9c04-4451-b50f-579349c941d9
-
-
-
 ---
+(https://github.com/user-attachments/assets/f3f9d8a9-1e34-417e-b69a-5f63b076eb2b)
 
 ## What is this?
 
