@@ -1355,7 +1355,10 @@ class WhisperTyper:
                     target=self._do_type, args=(text, route), daemon=True
                 ).start()
             else:
-                self._process_next_or_idle()
+                # No speech detected — brief visual feedback before returning to idle
+                self._mic_btn.set_state("idle", COLOR_AMBER)
+                self._status.configure(text="No speech detected", fg=COLOR_AMBER)
+                self.root.after(800, self._process_next_or_idle)
 
         elif kind == "typing_done":
             self._process_next_or_idle()
