@@ -117,6 +117,7 @@ class WhisperTyper:
 
         # Transcription queue — captures overlapping speech segments
         self._pending_audio = []
+        self._pending_audio_lock = threading.Lock()
         self._muted = False
 
         # Snap-to-window state
@@ -1124,8 +1125,9 @@ class WhisperTyper:
 
     def _process_next_or_idle(self):
         """Process next queued audio segment, or return to idle."""
-        if self._pending_audio:
-            audio = self._pending_audio.pop(0)
+        with self._pending_audio_lock:
+            audio = self._pending_audio.pop(0) if self._pending_audio else None
+        if audio is not None:
             self._set_state(STATE_TRANSCRIBING)
             threading.Thread(
                 target=self._do_transcribe, args=(audio,), daemon=True
@@ -1311,7 +1313,9 @@ class WhisperTyper:
             audio = event[1]
             if self._state in (STATE_TRANSCRIBING, STATE_TYPING):
                 # Already processing — queue this audio for later
-                self._pending_audio.append(audio)
+                with self._pending_audio_lock:
+                    if len(self._pending_audio) < 20:
+                        self._pending_audio.append(audio)
             else:
                 self._set_state(STATE_TRANSCRIBING)
                 if self._recorder and self._recorder.vad_active:
@@ -1358,9 +1362,14 @@ class WhisperTyper:
     def _do_transcribe(self, audio) -> None:
         """Run transcription in background thread."""
         try:
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError
             from transcriber import transcribe
-            text = transcribe(audio)
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(transcribe, audio)
+                text = future.result(timeout=30)
             self._event_queue.put(("transcription_result", text))
+        except TimeoutError:
+            self._event_queue.put(("audio_error", "Transcription timed out"))
         except Exception as e:
             self._event_queue.put(("audio_error", f"Transcription failed: {e}"))
 

@@ -93,7 +93,7 @@ class Recorder:
         self._vad_pre_pad_samples = int(SAMPLE_RATE * VAD_PRE_PAD_SEC)
         self._vad_chunk = bytearray()  # accumulate raw bytes for VAD window
         # VAD worker thread and queue — keeps inference off the PortAudio thread
-        self._vad_queue: queue.Queue[np.ndarray | None] = queue.Queue()
+        self._vad_queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=500)
         self._vad_thread: threading.Thread | None = None
 
     # ── Stream lifecycle ──────────────────────────────────────────
@@ -204,7 +204,7 @@ class Recorder:
         # Direct recording mode (PTT / Manual)
         with self._lock:
             if self._recording:
-                self._frames.append(mono)
+                self._frames.append(mono.copy())
                 # Check max duration
                 elapsed = time.monotonic() - self._start_time
                 if elapsed >= MAX_RECORD_SEC:
