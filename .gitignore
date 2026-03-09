@@ -32,3 +32,7 @@ WhisperTyper.vbs
 
 # Test cache
 .pytest_cache/
+
+# Cross-platform backends (untested, not yet public)
+compat/macos.py
+compat/linux.py

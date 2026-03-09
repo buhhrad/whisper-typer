@@ -45,7 +45,7 @@ def _print_banner():
 {_styled("  │", _DIM)}  {_styled("░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀", _DIM)}       {_styled("│", _DIM)}
 {_styled("  │", _DIM)}                                            {_styled("│", _DIM)}
 {_styled("  │", _DIM)}  {_styled("T Y P E R", _WHITE, _BOLD)}                              {_styled("│", _DIM)}
-{_styled("  │", _DIM)}  {_styled("Local voice typing — any platform", _GRAY)}        {_styled("│", _DIM)}
+{_styled("  │", _DIM)}  {_styled("Local voice typing for Windows", _GRAY)}           {_styled("│", _DIM)}
 {_styled("  ╰──────────────────────────────────────────╯", _DIM)}
 """
     print(banner)

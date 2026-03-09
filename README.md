@@ -1,128 +1,143 @@
-# Whisper Typer
 
-A lightweight, always-on-top voice typing widget. Transcribes speech in real-time using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and routes text to your active terminal, clipboard, or any window.
+<div align="center">
 
-![Windows](https://img.shields.io/badge/platform-Windows-blue)
-![macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
-![Linux](https://img.shields.io/badge/platform-Linux-orange)
-![Python](https://img.shields.io/badge/python-3.10%2B-green)
+```
+░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄
+░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄
+░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀
+          T Y P E R
+```
+
+**Local voice typing that lives in your terminal.**
+
+Talk. Transcribe. Type. No cloud. No latency. No subscription.
+
+[![Windows](https://img.shields.io/badge/Windows_10%2F11-0078D4?logo=windows&logoColor=white)](https://github.com/buhhrad/whisper-typer)
+[![Python](https://img.shields.io/badge/Python_3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![faster-whisper](https://img.shields.io/badge/powered_by-faster--whisper-orange)](https://github.com/SYSTRAN/faster-whisper)
+
+</div>
+
+---
+
+## What is this?
+
+A tiny, always-on-top floating widget that transcribes your speech in real-time using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and routes the text wherever you need it — your terminal, clipboard, or any focused window.
+
+It snaps to your terminal as a transparent overlay and stays out of the way until you need it.
 
 ## Features
 
 - **Push-to-Talk** — Hold `Ctrl+Shift+Space` to record, release to transcribe
-- **Always-on VAD** — Silero VAD detects speech automatically, hands-free
-- **Snap to Terminal** — Attaches to your terminal as a transparent overlay, follows the window
-- **Multiple output routes** — Auto Terminal (background), Paste only, Clipboard only
-- **Queued transcription** — Captures overlapping speech segments so pauses don't cut you off
+- **Always-on VAD** — Silero VAD detects speech automatically, completely hands-free
+- **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay, follows the window
+- **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus
+- **Queued transcription** — Overlapping speech segments are captured so pauses don't cut you off
 - **System tray** — Minimizes to tray, stays out of the way
-- **Configurable** — Model size, device, hotkeys, mic selection, output routing
-
-## Requirements
-
-- **Windows 10/11**, **macOS**, or **Linux** (X11 recommended; Wayland has limited support)
-- **Python 3.10+**
-- **CUDA GPU** (recommended) or CPU (slower transcription)
-
-### Platform notes
-
-| Feature | Windows | macOS | Linux (X11) | Linux (Wayland) |
-|---------|---------|-------|-------------|-----------------|
-| Clipboard | Full | Full | Full | Full |
-| Terminal auto-find | Full | AppleScript | xdotool | Not supported |
-| Window snapping | Full | Partial | Partial | Not supported |
-| Transparency | Per-pixel | Window alpha | Compositor | Compositor |
-| Rounded corners | Full | Native | Compositor | Compositor |
-
-On macOS, paste uses `Cmd+V` automatically. On Linux, install `xdotool` and `xclip` for full functionality.
+- **Fully configurable** — Model, device, hotkeys, mic, output routing — all from the settings popup
 
 ## Quick Start
-
-### 1. Clone & Install
 
 ```bash
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
-pip install .
+python install.py
 ```
 
-### 2. Run
+The installer checks your environment, installs dependencies, and optionally pre-downloads a whisper model.
+
+Or install manually:
 
 ```bash
+pip install .
 whisper-typer
 ```
 
-Or run directly with `python whisper_typer.py`.
-
-### 3. Use
-
-- Click the **mic icon** to toggle manual recording
-- Click the **bars icon** to enable always-on VAD (voice activity detection)
-- Click the **gear icon** for settings (mic, output route, snap to terminal)
-- Press `Ctrl+Shift+Space` for push-to-talk (hold to record, release to transcribe)
-
-## Configuration
-
-### Command-line options
+<details>
+<summary><b>CLI options</b></summary>
 
 ```
-python whisper_typer.py --model small       # Use smaller/faster model
-python whisper_typer.py --device cpu        # Force CPU (no CUDA needed)
-python whisper_typer.py --list-devices      # List available mic devices
+whisper-typer --model small       # Use a smaller/faster model
+whisper-typer --device cpu        # Force CPU (no CUDA needed)
+whisper-typer --list-devices      # List available microphones
 ```
 
-### Whisper models
+</details>
 
-Change the model in the settings popup (gear icon → WHISPER section), or via CLI:
+## How to Use
 
-| Model | Size | Speed | Quality |
-|-------|------|-------|---------|
-| `tiny` | 75MB | Fastest | Basic |
-| `base` | 150MB | Fast | Good |
-| `small` | 500MB | Medium | Better |
-| `medium` | 1.5GB | Slow | Great |
-| `large-v3` | 3GB | Slowest | Best |
-| `large-v3-turbo` | 1.6GB | Fast | Great (default) |
+| Action | How |
+|--------|-----|
+| **Manual record** | Click the mic icon |
+| **Push-to-talk** | Hold `Ctrl+Shift+Space`, release to transcribe |
+| **Always-on VAD** | Click the bars icon — speaks are detected automatically |
+| **Mute (VAD)** | `Ctrl+Shift+M` while VAD is active |
+| **Settings** | Click the gear icon |
+| **Snap to terminal** | Settings → Snap to Terminal |
 
-### Output routes
+## Models
 
-| Route | Behavior |
-|-------|----------|
-| Auto Terminal | Finds a terminal in the background, pastes + Enter, restores focus (default) |
-| Paste Only | Clipboard → Ctrl+V into the focused window |
-| Clipboard Only | Copies to clipboard, no paste |
+All models run locally via [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Pick your tradeoff:
 
-### Hotkeys
+| Model | Size | Speed | Quality | |
+|-------|------|-------|---------|-|
+| `tiny` | 75 MB | Fastest | Basic | |
+| `base` | 150 MB | Fast | Good | |
+| `small` | 500 MB | Medium | Better | |
+| `medium` | 1.5 GB | Slow | Great | |
+| `large-v3-turbo` | 1.6 GB | Fast | Great | **← recommended** |
+| `large-v3` | 3 GB | Slowest | Best | |
 
-Configure via the settings popup (gear icon → KEYBINDS section):
+Change the model in settings (gear icon → Whisper section) or via `--model`.
 
-- **Push-to-talk**: `Ctrl+Shift+Space` (default) — hold to record, release to transcribe
-- **VAD toggle**: Not bound by default
-- **Mute**: `Ctrl+Shift+M` (default) — toggles mute when VAD is active
+Models download automatically on first use from HuggingFace, or pre-download via `python install.py`.
 
-## Files
+## Output Routes
+
+| Route | What it does |
+|-------|-------------|
+| **Auto Terminal** | Finds a background terminal, pastes + Enter, restores your focus *(default)* |
+| **Paste Only** | Copies to clipboard → sends Ctrl+V to the focused window |
+| **Clipboard Only** | Copies to clipboard, nothing else |
+
+## Requirements
+
+- **Windows 10 or 11**
+- **Python 3.10+**
+- **CUDA GPU** recommended — CPU works but transcription is slower
+
+> macOS and Linux support is in development. The abstraction layer exists (`compat/`) but the backends are untested and not yet included in releases.
+
+<details>
+<summary><b>Architecture</b></summary>
+
+```
+Microphone → sounddevice (16kHz)
+         → Silero VAD (speech detection)
+         → faster-whisper (transcription)
+         → Output routing (clipboard / paste / terminal)
+         → Transparent tkinter overlay (GUI)
+```
+
+**State machine:** `IDLE → RECORDING → TRANSCRIBING → TYPING → IDLE`
+
+Audio captured during transcription/typing is queued and processed sequentially — no speech is lost.
 
 | File | Purpose |
 |------|---------|
-| `whisper_typer.py` | Main application — GUI, state machine, event loop |
+| `whisper_typer.py` | Main app — GUI, state machine, event loop |
 | `widgets.py` | Custom tkinter widgets — mic icon, VAD bars, duration badge, loading bar |
 | `audio.py` | Mic capture, VAD processing, recording controller |
 | `transcriber.py` | faster-whisper transcription wrapper |
 | `typer.py` | Text output routing (clipboard, paste, auto-terminal) |
-| `hotkeys.py` | Global hotkey listener (push-to-talk, VAD toggle) |
-| `config.py` | All constants and configuration |
+| `hotkeys.py` | Global hotkey listener (push-to-talk, VAD toggle, mute) |
+| `config.py` | Constants and configuration |
 | `settings.py` | User settings persistence (JSON) |
-| `compat/` | Cross-platform abstraction layer (Windows, macOS, Linux backends) |
+| `compat/` | Platform abstraction layer |
 
-## How It Works
-
-1. **Audio capture**: `sounddevice` streams mic input at 16kHz
-2. **VAD**: Silero VAD runs on a dedicated thread, detecting speech start/end
-3. **Transcription**: `faster-whisper` transcribes audio segments (GPU-accelerated)
-4. **Output**: Text is routed to the selected target (clipboard, paste, terminal)
-5. **GUI**: Transparent tkinter overlay with PIL-rendered anti-aliased icons
-
-The app uses a state machine: `IDLE → RECORDING → TRANSCRIBING → TYPING → IDLE`. Audio captured during transcription/typing is queued and processed sequentially.
+</details>
 
 ## License
 
-MIT
+[MIT](LICENSE) — do whatever you want with it.

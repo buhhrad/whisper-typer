@@ -17,12 +17,21 @@ def _create_backend() -> PlatformBackend:
     if sys.platform == "win32":
         from .windows import WindowsBackend
         return WindowsBackend()
-    elif sys.platform == "darwin":
-        from .macos import MacOSBackend
-        return MacOSBackend()
-    else:
-        from .linux import LinuxBackend
-        return LinuxBackend()
+
+    # macOS and Linux backends exist but are untested.
+    # To enable: remove from .gitignore and uncomment below.
+    #
+    # elif sys.platform == "darwin":
+    #     from .macos import MacOSBackend
+    #     return MacOSBackend()
+    # else:
+    #     from .linux import LinuxBackend
+    #     return LinuxBackend()
+
+    raise RuntimeError(
+        f"Whisper Typer currently supports Windows only. "
+        f"Your platform: {sys.platform}"
+    )
 
 
 backend: PlatformBackend = _create_backend()
