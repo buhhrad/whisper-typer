@@ -1,5 +1,30 @@
 __pycache__/
 *.pyc
-trends_results/
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# User settings (generated at runtime)
 whisper_typer_settings.json
+
+# Error logs
 vad_error.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Shortcuts
+*.lnk
+
+# Trends data (not part of core app)
+trends.py
+trends_results/
+
+# Cairn-specific launcher
+claude-voice.bat

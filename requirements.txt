@@ -3,7 +3,5 @@ sounddevice>=0.4.6
 numpy>=1.24
 torch
 pynput>=1.7.6
-pytrends>=4.9.0
-pandas>=2.0
 pystray>=0.19.4
 Pillow>=10.0

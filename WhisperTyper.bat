@@ -1,3 +1,3 @@
 @echo off
-cd /d "D:\Coding\whisper-typer"
+cd /d "%~dp0"
 start "" pythonw whisper_typer.py %*

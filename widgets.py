@@ -6,10 +6,12 @@ on the dark theme instead of default tkinter/ttk widgets.
 
 from __future__ import annotations
 
+import math
+import random
 import tkinter as tk
 
 try:
-    from PIL import Image, ImageDraw, ImageTk
+    from PIL import Image, ImageDraw, ImageEnhance, ImageTk
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -390,6 +392,9 @@ class MicIcon(tk.Canvas):
         self._pulse_id: str | None = None
         self._pulse_frame = 0
         self._photo = None  # PIL anti-aliased render reference
+        self._mic_base_img: Image.Image | None = None  # cached for brightness pulse
+        self._mic_base_color: str | None = None
+        self._mic_base_bg: str | None = None
 
         self._draw_mic(self._color)
 
@@ -397,8 +402,34 @@ class MicIcon(tk.Canvas):
         self.bind("<Leave>", self._on_leave)
         self.bind("<ButtonPress-1>", self._on_click)
 
-    def _draw_mic(self, color: str):
-        """Draw a microphone icon with stroke outline, anti-aliased."""
+    def _draw_mic(self, color: str, _brightness: float | None = None, solid: bool = False):
+        """Draw a microphone icon with stroke outline, anti-aliased.
+
+        solid=False: outline only (no capsule fill) — used for idle/hover.
+        solid=True:  filled capsule — used for recording.
+        """
+        bg_hex = self.cget("bg")
+
+        # Fast path: brightness adjustment on cached RGBA icon layer
+        if (_brightness is not None and _HAS_PIL
+                and self._mic_base_img is not None
+                and self._mic_base_color == color
+                and self._mic_base_bg == bg_hex):
+            adjusted = ImageEnhance.Brightness(self._mic_base_img).enhance(_brightness)
+            r, g, b = _hex_to_rgb(bg_hex)
+            bg_img = Image.new("RGBA", (self.SIZE, self.SIZE), (r, g, b, 255))
+            if bg_hex.lower() == "#010101":
+                alpha = adjusted.split()[3]
+                mask = alpha.point(lambda a: 255 if a > 100 else 0)
+                bg_img.paste(adjusted, (0, 0), mask)
+            else:
+                bg_img.paste(adjusted, (0, 0), adjusted)
+            photo = ImageTk.PhotoImage(bg_img)
+            self._photo = photo
+            self.delete("all")
+            self.create_image(self.SIZE // 2, self.SIZE // 2, image=photo)
+            return
+
         stroke = _lighten(color, 40)
         if _HAS_PIL:
             def _draw(d, S):
@@ -409,17 +440,26 @@ class MicIcon(tk.Canvas):
                       start=0, end=180, fill=stroke, width=w)
                 d.line([(cx, cy + 5*S), (cx, cy + 9*S)], fill=stroke, width=w)
                 d.line([(cx - 3*S, cy + 9*S), (cx + 3*S, cy + 9*S)], fill=stroke, width=w)
-                d.ellipse([cx - 2*S, cy - 7*S, cx + 2*S, cy + 1*S], fill=color)
+                if solid:
+                    d.ellipse([cx - 2*S, cy - 7*S, cx + 2*S, cy + 1*S], fill=color)
             _aa_icon(self, self.SIZE, self.SIZE, _draw)
+            self._mic_base_color = color
+            self._mic_base_bg = bg_hex
+            S = _SUPERSAMPLE
+            img = Image.new("RGBA", (self.SIZE * S, self.SIZE * S), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            _draw(d, S)
+            self._mic_base_img = img.resize((self.SIZE, self.SIZE), Image.LANCZOS)
         else:
             self.delete("all")
             cx, cy = self.SIZE // 2, self.SIZE // 2
-            self.create_oval(cx - 3, cy - 8, cx + 3, cy + 2, fill="", outline=stroke, width=1.5)
+            self.create_oval(cx - 3, cy - 8, cx + 3, cy + 2, fill=color if solid else "", outline=stroke, width=1.5)
             self.create_arc(cx - 6, cy - 4, cx + 6, cy + 5,
                             start=180, extent=180, style="arc", outline=stroke, width=1.5)
             self.create_line(cx, cy + 5, cx, cy + 9, fill=stroke, width=1.5)
             self.create_line(cx - 3, cy + 9, cx + 3, cy + 9, fill=stroke, width=1.5)
-            self.create_oval(cx - 2, cy - 7, cx + 2, cy + 1, fill=color, outline="")
+            if solid:
+                self.create_oval(cx - 2, cy - 7, cx + 2, cy + 1, fill=color, outline="")
 
     def _draw_record(self, color: str, scale: float = 1.0):
         """Draw a filled record circle with stroke outline, anti-aliased."""
@@ -445,7 +485,6 @@ class MicIcon(tk.Canvas):
 
     def _draw_dots(self, color: str, frame: int):
         """Draw animated transcribing dots with stroke outlines, anti-aliased."""
-        import math
         stroke = _lighten(color, 40)
         if _HAS_PIL:
             def _draw(d, S):
@@ -479,15 +518,12 @@ class MicIcon(tk.Canvas):
             def _draw(d, S):
                 cx, cy = self.SIZE * S // 2, self.SIZE * S // 2
                 w = max(1, round(1.5 * S))
-                # Upward arrow shaft
                 d.line([(cx, cy + 2*S), (cx, cy - 5*S)], fill=stroke, width=max(1, round(2*S)))
                 d.line([(cx, cy + 2*S), (cx, cy - 5*S)], fill=color, width=w)
-                # Arrow chevron
                 d.line([(cx - 3*S, cy - 2*S), (cx, cy - 5*S)], fill=stroke, width=max(1, round(2*S)))
                 d.line([(cx + 3*S, cy - 2*S), (cx, cy - 5*S)], fill=stroke, width=max(1, round(2*S)))
                 d.line([(cx - 3*S, cy - 2*S), (cx, cy - 5*S)], fill=color, width=w)
                 d.line([(cx + 3*S, cy - 2*S), (cx, cy - 5*S)], fill=color, width=w)
-                # Tray — U shape at bottom
                 tray_pts = [
                     (cx - 6*S, cy + 1*S), (cx - 6*S, cy + 5*S),
                     (cx + 6*S, cy + 5*S), (cx + 6*S, cy + 1*S),
@@ -498,50 +534,69 @@ class MicIcon(tk.Canvas):
         else:
             self.delete("all")
             cx, cy = self.SIZE // 2, self.SIZE // 2
-            # Arrow
             self.create_line(cx, cy + 2, cx, cy - 5, fill=stroke, width=2)
             self.create_line(cx - 3, cy - 2, cx, cy - 5, fill=stroke, width=2)
             self.create_line(cx + 3, cy - 2, cx, cy - 5, fill=stroke, width=2)
             self.create_line(cx, cy + 2, cx, cy - 5, fill=color, width=1.2)
             self.create_line(cx - 3, cy - 2, cx, cy - 5, fill=color, width=1.2)
             self.create_line(cx + 3, cy - 2, cx, cy - 5, fill=color, width=1.2)
-            # Tray
             self.create_line(cx - 6, cy + 1, cx - 6, cy + 5, cx + 6, cy + 5, cx + 6, cy + 1,
                              fill=stroke, width=2, joinstyle=tk.MITER)
             self.create_line(cx - 6, cy + 1, cx - 6, cy + 5, cx + 6, cy + 5, cx + 6, cy + 1,
                              fill=color, width=1.2, joinstyle=tk.MITER)
+
+    _POP_STEPS = 5  # ~80ms at 16ms/frame
+    _POP_MS = 16
 
     def set_state(self, state: str, color: str):
         """Set icon state: 'idle', 'recording', 'transcribing', 'typing', 'loading'."""
         self._state = state
         self._color = color
         self._stop_pulse()
+        self._mic_base_img = None  # invalidate brightness cache
 
         if state == "idle":
-            self._draw_mic(color)
+            self._draw_mic(color, solid=False)  # outline only
         elif state == "recording":
             self._pulse_frame = 0
-            self._pulse_mic_breathe()
+            self._pop_step = 0
+            self._pop_to_record()
         elif state == "transcribing":
             self._pulse_frame = 0
             self._pulse_dots()
         elif state == "typing":
             self._draw_send(color)
         elif state == "loading":
-            self._draw_mic(color)
+            self._draw_mic(color, solid=False)
 
-    def _pulse_mic_breathe(self):
-        """Breathe the mic icon in the recording color."""
-        import math
+    def _pop_to_record(self):
+        """Pop-bounce animation: record dot scales up then settles, then pulses."""
         if self._state != "recording":
             return
-        t = self._pulse_frame * 0.1
-        brightness = 0.7 + 0.3 * (0.5 + 0.5 * math.sin(t))
-        r, g, b = _hex_to_rgb(self._color)
-        blended = _rgb_to_hex(int(r * brightness), int(g * brightness), int(b * brightness))
-        self._draw_mic(blended)
+        t = self._pop_step / self._POP_STEPS
+        # Overshoot bounce: scale up to 1.3x then ease back to 1.0x
+        if t < 0.5:
+            scale = 1.0 + 0.6 * (t * 2)  # 1.0 → 1.3
+        else:
+            scale = 1.3 - 0.3 * ((t - 0.5) * 2)  # 1.3 → 1.0
+        self._draw_record(self._color, scale=scale)
+        self._pop_step += 1
+        if self._pop_step <= self._POP_STEPS:
+            self._pulse_id = self.after(self._POP_MS, self._pop_to_record)
+        else:
+            # Pop done — keep pulsing the record dot (unmistakable "recording")
+            self._pulse_frame = 0
+            self._pulse_record_dot()
+
+    def _pulse_record_dot(self):
+        """Pulse the record dot — gentle scale breathing so it's clearly recording."""
+        if self._state != "recording":
+            return
+        t = self._pulse_frame * 0.12
+        scale = 0.85 + 0.15 * (0.5 + 0.5 * math.sin(t))  # 0.85x – 1.0x
+        self._draw_record(self._color, scale=scale)
         self._pulse_frame += 1
-        self._pulse_id = self.after(50, self._pulse_mic_breathe)
+        self._pulse_id = self.after(40, self._pulse_record_dot)
 
     def _pulse_dots(self):
         """Animate the transcribing dots smoothly."""
@@ -563,13 +618,13 @@ class MicIcon(tk.Canvas):
             self._hover = True
             if self._state == "idle":
                 from config import COLOR_RED
-                self._draw_mic(COLOR_RED)
+                self._draw_mic(COLOR_RED, solid=False)  # brighter outline on hover
 
     def _on_leave(self, e=None):
         self.configure(cursor="")
         self._hover = False
         if self._state == "idle":
-            self._draw_mic(self._color)
+            self._draw_mic(self._color, solid=False)  # dim outline
 
     def _on_click(self, e=None):
         if not self._disabled and self._command:
@@ -586,9 +641,9 @@ class VadToggle(tk.Canvas):
     ON:  Bars animate up and down like an equalizer, green.
     """
 
-    WIDTH = 28
+    WIDTH = 32
     HEIGHT = 30
-    _ANIM_MS = 7  # ms between animation frames (~144fps smooth)
+    _ANIM_MS = 16  # ms between animation frames (~60fps)
     _NUM_BARS = 5
     _BAR_W = 3
     _BAR_GAP = 2
@@ -618,12 +673,14 @@ class VadToggle(tk.Canvas):
         self._on_color = on_color
         self._active = False
         self._recording = False
+        self._processing = False
         self._loading = False
         self._anim_frame = 0
         self._anim_id: str | None = None
         self._last_heights: list[int] | None = None
         self._hover = False
         self._photo = None  # PIL anti-aliased render reference
+        self._bars_cache: dict[tuple, ImageTk.PhotoImage] = {}  # static frame cache
 
         self._draw_off()
 
@@ -631,22 +688,56 @@ class VadToggle(tk.Canvas):
         self.bind("<Leave>", self._on_leave)
         self.bind("<ButtonPress-1>", self._on_click)
 
-    def _draw_bars(self, heights: list[int], color: str):
-        """Draw vertical bars with stroke outlines, anti-aliased."""
+    def _draw_bars(self, heights: list[int], color: str, fast: bool = False, solid: bool = True):
+        """Draw vertical bars. solid=False draws outline-only bars.
+
+        Uses consistent 1x render for all frames to prevent thickness shifts
+        between animated and static states. Caches static frames.
+        """
         stroke = _lighten(color, 40)
+        fill = color if solid else ""
         if _HAS_PIL:
-            def _draw(d, S):
-                total_w = self._NUM_BARS * self._BAR_W + (self._NUM_BARS - 1) * self._BAR_GAP
-                start_x = (self.WIDTH - total_w) // 2
-                cy = self.HEIGHT // 2
-                w = max(1, S)
-                for i, h in enumerate(heights):
-                    x = (start_x + i * (self._BAR_W + self._BAR_GAP)) * S
-                    y1 = (cy - h // 2) * S
-                    y2 = (cy + h // 2) * S
-                    bw = self._BAR_W * S
-                    d.rectangle([x, y1, x + bw, y2], fill=color, outline=stroke, width=w)
-            _aa_icon(self, self.WIDTH, self.HEIGHT, _draw)
+            bg_hex = self.cget("bg")
+            cache_key = (tuple(heights), color, bg_hex, solid)
+
+            # Check cache for static frames (hover, toggle, loading)
+            if not fast:
+                cached = self._bars_cache.get(cache_key)
+                if cached is not None:
+                    self._photo = cached
+                    self.delete("all")
+                    self.create_image(self.WIDTH // 2, self.HEIGHT // 2, image=cached)
+                    return
+
+            pil_fill = _hex_to_rgb(color) + (255,) if solid else None
+
+            # Consistent 1x render for all frames (no thickness shift)
+            img = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            total_w = self._NUM_BARS * self._BAR_W + (self._NUM_BARS - 1) * self._BAR_GAP
+            start_x = (self.WIDTH - total_w) // 2
+            cy = self.HEIGHT // 2
+            for i, h in enumerate(heights):
+                x = start_x + i * (self._BAR_W + self._BAR_GAP)
+                y1 = cy - h // 2
+                y2 = cy + h // 2
+                d.rectangle([x, y1, x + self._BAR_W, y2], fill=pil_fill, outline=stroke, width=1)
+            r, g, b = _hex_to_rgb(bg_hex)
+            bg_img = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (r, g, b, 255))
+            if bg_hex.lower() == "#010101":
+                alpha = img.split()[3]
+                mask = alpha.point(lambda a: 255 if a > 100 else 0)
+                bg_img.paste(img, (0, 0), mask)
+            else:
+                bg_img.paste(img, (0, 0), img)
+            photo = ImageTk.PhotoImage(bg_img)
+            self._photo = photo
+            self.delete("all")
+            self.create_image(self.WIDTH // 2, self.HEIGHT // 2, image=photo)
+
+            # Cache static frames (limit 16)
+            if not fast and len(self._bars_cache) < 16:
+                self._bars_cache[cache_key] = self._photo
         else:
             self.delete("all")
             total_w = self._NUM_BARS * self._BAR_W + (self._NUM_BARS - 1) * self._BAR_GAP
@@ -656,15 +747,15 @@ class VadToggle(tk.Canvas):
                 x = start_x + i * (self._BAR_W + self._BAR_GAP)
                 y1 = cy - h // 2
                 y2 = cy + h // 2
-                self.create_rectangle(x, y1, x + self._BAR_W, y2, fill=color, outline=stroke, width=1)
+                self.create_rectangle(x, y1, x + self._BAR_W, y2, fill=fill, outline=stroke, width=1)
 
     def _draw_off(self):
-        """Draw static resting bars — active color on hover."""
+        """Draw static resting bars — dim color, bright on hover."""
         if self._hover:
             color = self._on_color
         else:
             color = self._off_color
-        self._draw_bars(self._REST_HEIGHTS, color)
+        self._draw_bars(self._REST_HEIGHTS, color, solid=True)
 
     def _draw_on(self, frame: int):
         """Draw animated equalizer bars."""
@@ -687,9 +778,9 @@ class VadToggle(tk.Canvas):
         self._hover = True
         self.configure(cursor="arrow")
         if not self._active:
-            self._draw_off()
+            self._draw_off()  # outline, brighter color
         elif not self._recording:
-            self._draw_bars(self._REST_HEIGHTS, _lighten(self._on_color, 30))
+            self._draw_bars(self._REST_HEIGHTS, _lighten(self._on_color, 30), solid=True)
 
     def _on_leave(self, e=None):
         if self._loading:
@@ -697,9 +788,9 @@ class VadToggle(tk.Canvas):
         self._hover = False
         self.configure(cursor="")
         if not self._active:
-            self._draw_off()
+            self._draw_off()  # outline, dim color
         elif not self._recording:
-            self._draw_bars(self._REST_HEIGHTS, self._on_color)
+            self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
 
     def _on_click(self, e=None):
         if self._loading:
@@ -707,34 +798,87 @@ class VadToggle(tk.Canvas):
         if self._command:
             self._command()
 
+    _POP_STEPS = 6  # ~96ms at 16ms/frame
+    _POP_PEAK_H = 24  # max bar height during pop
+
     def set_active(self, active: bool):
-        """Turn VAD on/off — flash then settle."""
+        """Turn VAD on/off with pop-bounce animation."""
         self._active = active
         self._recording = False
+        self._processing = False
         self._stop_anim()
         if active:
-            # Flash bright on activation
-            self._draw_bars(self._REST_HEIGHTS, _lighten(self._on_color, 50))
-            self.after(120, lambda: self._draw_bars(self._REST_HEIGHTS, self._on_color)
-                       if self._active and not self._recording else None)
+            self._pop_step = 0
+            self._pop_activate()
         else:
-            # Flash dim on deactivation
-            self._draw_bars(self._REST_HEIGHTS, _darken(self._off_color, 20))
-            self.after(120, lambda: self._draw_off()
-                       if not self._active else None)
+            self._pop_step = 0
+            self._pop_deactivate()
 
-    _FADE_STEPS = 20  # ~140ms at 7ms/frame
+    def _pop_activate(self):
+        """Cascade-pop: bars shoot up staggered left-to-right, then settle."""
+        if not self._active or self._recording:
+            return
+        t = self._pop_step / self._POP_STEPS
+        heights = []
+        for i in range(self._NUM_BARS):
+            # Stagger: each bar starts slightly later
+            bar_t = max(0.0, min(1.0, (t - i * 0.08) / 0.7))
+            # Overshoot bounce
+            if bar_t < 0.5:
+                h = self._REST_HEIGHTS[i] + (self._POP_PEAK_H - self._REST_HEIGHTS[i]) * (bar_t * 2)
+            else:
+                h = self._POP_PEAK_H + (self._REST_HEIGHTS[i] - self._POP_PEAK_H) * ((bar_t - 0.5) * 2)
+            heights.append(int(h))
+        self._draw_bars(heights, self._on_color, fast=True, solid=True)
+        self._pop_step += 1
+        if self._pop_step <= self._POP_STEPS:
+            self._anim_id = self.after(self._ANIM_MS, self._pop_activate)
+        else:
+            self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
+
+    def _pop_deactivate(self):
+        """Bars shrink down then settle to outline resting."""
+        if self._active:
+            return
+        t = self._pop_step / self._POP_STEPS
+        # Ease-out: bars shrink from current to smaller, then back to rest
+        heights = []
+        for i in range(self._NUM_BARS):
+            bar_t = max(0.0, min(1.0, (t - i * 0.06) / 0.7))
+            if bar_t < 0.4:
+                h = self._REST_HEIGHTS[i] * (1.0 - bar_t * 1.5)  # shrink
+            else:
+                shrunk = self._REST_HEIGHTS[i] * 0.4
+                h = shrunk + (self._REST_HEIGHTS[i] - shrunk) * ((bar_t - 0.4) / 0.6)  # recover
+            heights.append(max(2, int(h)))
+        self._draw_bars(heights, self._off_color, fast=True, solid=True)
+        self._pop_step += 1
+        if self._pop_step <= self._POP_STEPS:
+            self._anim_id = self.after(self._ANIM_MS, self._pop_deactivate)
+        else:
+            self._draw_off()
+
+    _FADE_STEPS = 5  # ~80ms at 16ms/frame — snappy transitions
 
     def set_recording(self, recording: bool):
         """Start/stop the equalizer animation (when speech detected)."""
         self._recording = recording
+        if recording:
+            self._processing = False
         self._stop_anim()  # always stop existing animation first
         if recording and self._active:
             self._anim_frame = 0
-            self._animate()
+            # Smooth fade-in from current heights to animated
+            self._fade_from = list(self._last_heights or self._REST_HEIGHTS)
+            self._fade_step = 0
+            self._fade_in()
+        elif not recording and self._processing and self._active:
+            # If processing mode is set, transition to gentle animation
+            self._anim_frame = 0
+            self._animate_processing()
         else:
             # Fade out from current heights to resting
-            if self._active and hasattr(self, '_last_heights') and self._last_heights:
+            if self._active and self._last_heights:
                 self._fade_from = list(self._last_heights)
                 self._fade_step = 0
                 self._fade_out()
@@ -743,8 +887,45 @@ class VadToggle(tk.Canvas):
             else:
                 self._draw_off()
 
+    def _calc_anim_heights(self, t: int) -> list[int]:
+        """Calculate animation bar heights for frame t."""
+        heights = []
+        for i in range(self._NUM_BARS):
+            f = self._BAR_FREQS[i]
+            p = self._BAR_PHASES[i]
+            primary = math.sin(t * f + p)
+            h2 = math.sin(t * f * 1.7 + p * 0.5) * 0.3
+            h3 = math.sin(t * f * 2.9 + p * 1.3) * 0.15
+            jitter = random.uniform(-0.06, 0.06)
+            combined = (primary + h2 + h3 + jitter) / 1.45
+            h = int(self._BAR_BASES[i] + self._BAR_AMPS[i] * (0.5 + 0.5 * combined))
+            heights.append(h)
+        return heights
+
+    def _fade_in(self):
+        """Smoothly lerp bar heights from resting to animated targets."""
+        if not self._recording:
+            return
+        t = self._fade_step / self._FADE_STEPS
+        # Ease-in curve (accelerate into animation)
+        t = t * t
+        target = self._calc_anim_heights(self._anim_frame)
+        heights = []
+        for i in range(self._NUM_BARS):
+            h = int(self._fade_from[i] + (target[i] - self._fade_from[i]) * t)
+            heights.append(h)
+        self._last_heights = heights
+        self._draw_bars(heights, self._on_color, fast=True)
+        self._fade_step += 1
+        self._anim_frame += 1
+        if self._fade_step <= self._FADE_STEPS:
+            self._anim_id = self.after(self._ANIM_MS, self._fade_in)
+        else:
+            # Fade complete — continue with regular animation
+            self._animate()
+
     def _fade_out(self):
-        """Smoothly lerp bar heights from current to resting."""
+        """Smoothly lerp bar heights from current to resting, then idle breathe."""
         if self._recording:
             return  # new recording started, abort fade
         t = self._fade_step / self._FADE_STEPS
@@ -754,25 +935,65 @@ class VadToggle(tk.Canvas):
         for i in range(self._NUM_BARS):
             h = int(self._fade_from[i] + (self._REST_HEIGHTS[i] - self._fade_from[i]) * t)
             heights.append(h)
-        self._draw_bars(heights, self._on_color)
+        self._draw_bars(heights, self._on_color, fast=True)
         self._fade_step += 1
         if self._fade_step <= self._FADE_STEPS:
             self._anim_id = self.after(self._ANIM_MS, self._fade_out)
         else:
             self._last_heights = None
 
+    # Processing animation — gentle, slow movement while transcribing/typing
+    _PROC_ANIM_MS = 48  # ~20fps — slower than recording's 16ms/60fps
+    _PROC_AMPS = [4, 5, 3, 5, 4]  # much smaller amplitudes than recording
+    _PROC_FREQS = [0.04, 0.055, 0.03, 0.045, 0.06]  # slower oscillation
+
+    def set_processing(self, processing: bool):
+        """Start/stop gentle processing animation (transcribing/typing)."""
+        self._processing = processing
+        self._recording = False
+        self._stop_anim()
+        if processing and self._active:
+            # Transition from current heights (or rest) into gentle animation
+            self._anim_frame = 0
+            self._animate_processing()
+        elif self._active:
+            # Fade out to static resting
+            if self._last_heights:
+                self._fade_from = list(self._last_heights)
+                self._fade_step = 0
+                self._fade_out()
+            else:
+                self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
+
+    def _animate_processing(self):
+        """Gentle sine-wave animation — subtle movement during processing."""
+        if not self._processing or self._recording:
+            return
+        heights = []
+        for i in range(self._NUM_BARS):
+            f = self._PROC_FREQS[i]
+            p = self._BAR_PHASES[i]
+            val = math.sin(self._anim_frame * f + p)
+            h = int(self._REST_HEIGHTS[i] + self._PROC_AMPS[i] * val)
+            heights.append(max(2, h))
+        self._last_heights = heights
+        self._draw_bars(heights, self._on_color, fast=True, solid=True)
+        self._anim_frame += 1
+        self._anim_id = self.after(self._PROC_ANIM_MS, self._animate_processing)
+
     def set_color(self, color: str):
         """Change the active color (e.g. blue for transcribing)."""
         self._on_color = color
-        if self._active and not self._recording:
-            self._draw_bars(self._REST_HEIGHTS, color)
+        if self._active and not self._recording and not self._processing:
+            self._stop_anim()
+            self._draw_bars(self._REST_HEIGHTS, color, solid=True)
 
     def set_loading(self, loading: bool, dim_color: str | None = None):
         """Show static dim bars while loading, normal bars when done."""
         self._loading = loading
         self._stop_anim()
         if loading:
-            self._draw_bars(self._REST_HEIGHTS, dim_color or "#2a2a3a")
+            self._draw_bars(self._REST_HEIGHTS, dim_color or "#2a2a3a", solid=True)
         else:
             self._draw_off()
 
@@ -784,29 +1005,281 @@ class VadToggle(tk.Canvas):
     # Per-bar oscillation params for organic, asymmetrical movement
     _BAR_FREQS = [0.08, 0.11, 0.06, 0.09, 0.13]
     _BAR_PHASES = [0.0, 2.1, 0.7, 3.5, 1.3]
-    _BAR_AMPS = [7, 9, 6, 8, 7]
+    _BAR_AMPS = [11, 14, 10, 13, 11]
     _BAR_BASES = [4, 3, 5, 4, 3]
 
     def _animate(self):
-        """Randomized sine-wave animation — organic with jitter."""
-        import math, random
+        """Sine-wave animation — organic movement with minimal jitter."""
         if not self._recording:
             return
-
-        heights = []
-        t = self._anim_frame
-        for i in range(self._NUM_BARS):
-            f = self._BAR_FREQS[i]
-            p = self._BAR_PHASES[i]
-            primary = math.sin(t * f + p)
-            h2 = math.sin(t * f * 1.7 + p * 0.5) * 0.3
-            h3 = math.sin(t * f * 2.9 + p * 1.3) * 0.15
-            jitter = random.uniform(-0.15, 0.15)
-            combined = (primary + h2 + h3 + jitter) / 1.45
-            h = int(self._BAR_BASES[i] + self._BAR_AMPS[i] * (0.5 + 0.5 * combined))
-            heights.append(h)
+        heights = self._calc_anim_heights(self._anim_frame)
         self._last_heights = heights
-        self._draw_bars(heights, self._on_color)
+        self._draw_bars(heights, self._on_color, fast=True)
         self._anim_frame += 1
         self._anim_id = self.after(self._ANIM_MS, self._animate)
+
+
+class LoadingBar(tk.Canvas):
+    """Indeterminate loading bar — rounded pill shape, sliding highlight."""
+
+    WIDTH = 56
+    HEIGHT = 30
+    _BAR_H = 4
+    _BAR_R = 2  # pill radius
+    _HIGHLIGHT_W = 18
+    _TRACK_PAD = 4  # padding from canvas edge to track
+
+    def __init__(self, parent, bg: str = "#0e0e1a",
+                 color: str = "#e0a820", track_color: str = "#1a1a2a", **kwargs):
+        super().__init__(
+            parent, width=self.WIDTH, height=self.HEIGHT,
+            bg=bg, highlightthickness=0, **kwargs,
+        )
+        self._color = color
+        self._track_color = track_color
+        self._frame = 0
+        self._anim_id: str | None = None
+        self._photo = None
+        self._start()
+
+    def _start(self):
+        self._frame = 0
+        self._render()
+
+    def _render(self):
+        # Ping-pong position with smooth easing
+        cycle = 80
+        t = (self._frame % cycle) / cycle
+        if t > 0.5:
+            t = 1 - t
+        t *= 2
+        t = t * t * (3 - 2 * t)  # smoothstep
+
+        track_l = self._TRACK_PAD
+        track_r = self.WIDTH - self._TRACK_PAD
+        track_w = track_r - track_l
+        hl_x = track_l + t * (track_w - self._HIGHLIGHT_W)
+
+        cy = self.HEIGHT // 2
+        bar_t = cy - self._BAR_H // 2
+        bar_b = cy + self._BAR_H // 2
+
+        bg_hex = self.cget("bg")
+        r, g, b = _hex_to_rgb(bg_hex)
+
+        if _HAS_PIL:
+            img = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+
+            # Track
+            tr, tg, tb = _hex_to_rgb(self._track_color)
+            draw.rounded_rectangle(
+                [track_l, bar_t, track_r, bar_b],
+                radius=self._BAR_R, fill=(tr, tg, tb),
+            )
+            # Highlight
+            cr, cg, cb = _hex_to_rgb(self._color)
+            draw.rounded_rectangle(
+                [int(hl_x), bar_t, int(hl_x + self._HIGHLIGHT_W), bar_b],
+                radius=self._BAR_R, fill=(cr, cg, cb),
+            )
+
+            # Composite onto background
+            bg_img = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (r, g, b, 255))
+            if bg_hex.lower() == "#010101":
+                alpha = img.split()[3]
+                mask = alpha.point(lambda a: 255 if a > 100 else 0)
+                bg_img.paste(img, (0, 0), mask)
+            else:
+                bg_img.paste(img, (0, 0), img)
+
+            photo = ImageTk.PhotoImage(bg_img)
+            self._photo = photo
+            self.delete("all")
+            self.create_image(self.WIDTH // 2, self.HEIGHT // 2, image=photo)
+        else:
+            self.delete("all")
+            self.create_rectangle(
+                track_l, bar_t, track_r, bar_b,
+                fill=self._track_color, outline="",
+            )
+            self.create_rectangle(
+                int(hl_x), bar_t, int(hl_x + self._HIGHLIGHT_W), bar_b,
+                fill=self._color, outline="",
+            )
+
+        self._frame += 1
+        self._anim_id = self.after(16, self._render)
+
+    def stop(self):
+        if self._anim_id:
+            self.after_cancel(self._anim_id)
+            self._anim_id = None
+
+
+class DurationBadge(tk.Canvas):
+    """Rounded pill badge showing recording duration — 0:00 format.
+
+    Renders via PIL for anti-aliased rounded rectangle + text.
+    Hidden when not recording (draws only canvas bg).
+    Animates width smoothly on show/hide for a polished pop-out effect.
+    """
+
+    WIDTH = 38
+    HEIGHT = 18
+    _PILL_R = 6
+    _FONT_NAME = "Cascadia Code"
+    _FONT_SIZE = 9
+    _ANIM_STEPS = 16  # ~256ms at 16ms/frame
+    _ANIM_MS = 16
+
+    def __init__(self, parent, bg: str = "#0e0e1a",
+                 pill_color: str = "#1a1a2a", text_color: str = "#ff4444",
+                 on_resize=None, **kwargs):
+        super().__init__(
+            parent, width=0, height=self.HEIGHT,
+            bg=bg, highlightthickness=0, **kwargs,
+        )
+        self._pill_color = pill_color
+        self._text_color = text_color
+        self._text = ""
+        self._photo = None
+        self._visible = False
+        self._on_resize = on_resize  # callback to resize parent window
+        self._anim_id: str | None = None
+        self._anim_step = 0
+        self._anim_expanding = True
+        self._current_width = 0
+
+    def set_time(self, text: str) -> None:
+        """Update the displayed time (e.g. '0:05'). Pass '' to hide."""
+        if text == self._text:
+            return
+        self._text = text
+        self._visible = bool(text)
+        if self._current_width == self.WIDTH:
+            self._render()
+
+    def show(self) -> None:
+        """Start the expand animation."""
+        self._visible = True
+        self._stop_anim()
+        self._anim_step = 0
+        self._anim_expanding = True
+        self._animate_width()
+
+    def hide(self) -> None:
+        """Start the collapse animation."""
+        self._stop_anim()
+        if self._current_width > 0:
+            self._anim_step = 0
+            self._anim_expanding = False
+            self._animate_width()
+        else:
+            self._text = ""
+            self._visible = False
+            self.delete("all")
+
+    def hide_immediate(self) -> None:
+        """Instantly hide without animation."""
+        self._stop_anim()
+        self._text = ""
+        self._visible = False
+        self._current_width = 0
+        self.configure(width=0)
+        self.delete("all")
+
+    def _stop_anim(self) -> None:
+        if self._anim_id:
+            self.after_cancel(self._anim_id)
+            self._anim_id = None
+
+    def _animate_width(self) -> None:
+        t = self._anim_step / self._ANIM_STEPS
+        if self._anim_expanding:
+            # Ease-out: fast start, gentle settle
+            t = 1 - (1 - t) ** 3
+            w = int(self.WIDTH * t)
+        else:
+            # Ease-in: gentle start, fast close
+            t = t * t * t
+            w = int(self.WIDTH * (1 - t))
+
+        self._current_width = max(0, min(self.WIDTH, w))
+        self.configure(width=self._current_width)
+
+        # Render content once wide enough to show text
+        if self._anim_expanding and self._current_width >= self.WIDTH * 0.5:
+            self._render()
+
+        if self._on_resize:
+            self._on_resize(skip_corners=True)  # skip SetWindowRgn during animation
+
+        self._anim_step += 1
+        if self._anim_step <= self._ANIM_STEPS:
+            self._anim_id = self.after(self._ANIM_MS, self._animate_width)
+        else:
+            # Animation complete
+            if not self._anim_expanding:
+                self._text = ""
+                self._visible = False
+                self._current_width = 0
+                self.configure(width=0)
+                self.delete("all")
+            else:
+                self._current_width = self.WIDTH
+                self.configure(width=self.WIDTH)
+                self._render()
+            if self._on_resize:
+                self._on_resize()  # final resize WITH rounded corners
+
+    def _render(self) -> None:
+        self.delete("all")
+        if not self._visible or not _HAS_PIL:
+            return
+
+        render_w = max(self._current_width, 1)
+        bg_hex = self.cget("bg")
+        r, g, b = _hex_to_rgb(bg_hex)
+
+        img = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Rounded pill background
+        pr, pg, pb = _hex_to_rgb(self._pill_color)
+        draw.rounded_rectangle(
+            [0, 1, self.WIDTH - 1, self.HEIGHT - 2],
+            radius=self._PILL_R, fill=(pr, pg, pb),
+        )
+
+        # Timer text
+        try:
+            from PIL import ImageFont
+            font = ImageFont.truetype(self._FONT_NAME, self._FONT_SIZE)
+        except Exception:
+            font = ImageFont.load_default()
+        tr, tg, tb = _hex_to_rgb(self._text_color)
+        bbox = draw.textbbox((0, 0), self._text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        tx = (self.WIDTH - tw) // 2
+        ty = (self.HEIGHT - th) // 2 - 1
+        draw.text((tx, ty), self._text, fill=(tr, tg, tb), font=font)
+
+        # Crop to current animated width
+        if render_w < self.WIDTH:
+            img = img.crop((0, 0, render_w, self.HEIGHT))
+
+        # Composite onto bg
+        bg_img = Image.new("RGBA", (render_w, self.HEIGHT), (r, g, b, 255))
+        if bg_hex.lower() == "#010101":
+            alpha = img.split()[3]
+            mask = alpha.point(lambda a: 255 if a > 100 else 0)
+            bg_img.paste(img, (0, 0), mask)
+        else:
+            bg_img.paste(img, (0, 0), img)
+
+        photo = ImageTk.PhotoImage(bg_img)
+        self._photo = photo
+        self.create_image(render_w // 2, self.HEIGHT // 2, image=photo)
 

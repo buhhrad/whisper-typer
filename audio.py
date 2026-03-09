@@ -211,7 +211,7 @@ class Recorder:
                     threading.Thread(target=self.stop_recording, daemon=True).start()
                     return
                 # Silence detection for non-VAD recording
-                rms = float(np.sqrt(np.mean(mono ** 2)))
+                rms = float(np.sqrt(np.dot(mono, mono) / len(mono)))
                 if rms < 0.01:
                     if self._silence_start is None:
                         self._silence_start = time.monotonic()
@@ -249,7 +249,7 @@ class Recorder:
         Called from the VAD worker thread only. Uses _vad_lock for shared state.
         """
         # Accumulate into VAD-sized chunks (using raw bytes for thread safety)
-        raw = mono.astype(np.float32).tobytes()
+        raw = mono.tobytes()
         with self._vad_lock:
             self._vad_chunk.extend(raw)
 
@@ -272,8 +272,10 @@ class Recorder:
             with self._vad_lock:
                 if not self._vad_speaking:
                     # Buffer audio for pre-pad
-                    self._vad_buffer.extend(chunk.tolist())
-                    while len(self._vad_buffer) > self._vad_pre_pad_samples:
+                    self._vad_buffer.append(chunk.copy())
+                    total = sum(len(c) for c in self._vad_buffer)
+                    while total > self._vad_pre_pad_samples and len(self._vad_buffer) > 1:
+                        total -= len(self._vad_buffer[0])
                         self._vad_buffer.popleft()
 
                     if is_speech:
@@ -283,7 +285,7 @@ class Recorder:
 
                         # Start recording with pre-pad buffer
                         with self._lock:
-                            pre_pad = np.array(list(self._vad_buffer), dtype=np.float32)
+                            pre_pad = np.concatenate(list(self._vad_buffer)) if self._vad_buffer else np.array([], dtype=np.float32)
                             self._frames = [pre_pad] if len(pre_pad) > 0 else []
                             self._recording = True
                             self._start_time = time.monotonic()

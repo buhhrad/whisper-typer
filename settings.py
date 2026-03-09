@@ -17,7 +17,6 @@ _DEFAULTS = {
     "vad_enabled": False,
     "window_x": None,
     "window_y": None,
-    "cairn_api_url": None,    # override Cairn API URL, or None for default
     "ptt_hotkey": ["ctrl", "shift", "space"],  # push-to-talk key combo
     "vad_hotkey": None,       # VAD toggle key combo, or None for no binding
 }

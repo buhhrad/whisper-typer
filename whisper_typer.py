@@ -69,7 +69,7 @@ from config import (
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
 )
-from widgets import PillButton, DropdownButton, MicIcon, VadToggle
+from widgets import PillButton, DropdownButton, MicIcon, VadToggle, LoadingBar, DurationBadge
 
 # ── Win32 constants ───────────────────────────────────────────────────
 GWL_EXSTYLE = -20
@@ -128,8 +128,9 @@ class WhisperTyper:
         self._model_ready = False
         self._transparent_mode = True  # default to transparent
 
-        # Cairn backend connection state
-        self._cairn_connected = False
+        # Transcription queue — captures overlapping speech segments
+        self._pending_audio = []
+        self._typing_in_progress = False
 
         # Snap-to-window state
         self._snap_hwnd = None
@@ -140,6 +141,7 @@ class WhisperTyper:
         self._snap_bar_h: int = 0
         self._snap_tk_hwnd: int = 0
         self._user32 = ctypes.windll.user32
+        self._snap_rect = self._RECT()  # reuse single struct for snap polling
 
         # Lazy imports — only load heavy modules when needed
         self._recorder = None
@@ -167,35 +169,37 @@ class WhisperTyper:
         # ── Main bar — one unified draggable block ───────────────
         _BAR_BG = COLOR_TRANSPARENT if self._transparent_mode else COLOR_TERMINAL_BG
         _BTN_BG = _BAR_BG
-        row = tk.Frame(self.root, bg=_BAR_BG, cursor="fleur")
+        row = tk.Frame(self.root, bg=_BAR_BG)
         row.pack(fill=tk.BOTH, expand=True)
         self._bar_row = row
 
         # ── Grip dots (left edge) — visible in transparent mode for grabbing ──
         grip_l = tk.Canvas(
             row, width=8, height=30, bg=_BAR_BG,
-            highlightthickness=0, cursor="fleur",
+            highlightthickness=0,
         )
-        grip_l.pack(side=tk.LEFT, fill=tk.Y)
+        grip_l.pack(side=tk.LEFT, fill=tk.Y, padx=(2, 0))
 
-        # Mic icon (left) — starts in loading state
+        # Mic icon (left) — hidden during loading
         self._mic_btn = MicIcon(row, command=self._on_mic_click, bg=_BTN_BG)
         self._mic_btn.set_disabled(True)
-        self._mic_btn.set_state("loading", "#2a2a3a")
-        self._mic_btn.pack(side=tk.LEFT, padx=(2, 3))
+
+        # Loading bar — replaces mic + vad icons during boot
+        self._loading_bar = LoadingBar(row, bg=_BTN_BG, color=COLOR_AMBER, track_color="#1a1a2a")
+        self._loading_bar.pack(side=tk.LEFT, padx=(2, 3))
+
+        # Duration badge — rounded pill between mic and VAD, visible during recording
+        # Packed at width=0 initially — animates open/closed smoothly
+        self._duration_badge = DurationBadge(
+            row, bg=_BTN_BG, pill_color="#1a1a2a", text_color="#ff4444",
+            on_resize=self._resize_window,
+        )
 
         # Status label (hidden — kept for compatibility with status update calls)
         self._status = tk.Label(
             row, text="Loading model\u2026", font=("Segoe UI", 7),
             fg=COLOR_TEXT_DIM, bg=_BAR_BG, anchor="w",
         )
-
-        # ── Grip dots (right edge) ──
-        grip_r = tk.Canvas(
-            row, width=8, height=30, bg=_BAR_BG,
-            highlightthickness=0, cursor="fleur",
-        )
-        grip_r.pack(side=tk.RIGHT, fill=tk.Y)
 
         # Close × (canvas with outline)
         _ICON_SIZE = 26
@@ -225,16 +229,14 @@ class WhisperTyper:
         ))
         self._gear_btn.bind("<ButtonPress-1>", lambda e: self._toggle_settings())
 
-        # VAD toggle — starts in loading state
+        # VAD toggle — hidden during loading, shown when model ready
         self._vad_btn = VadToggle(
             row, command=self._on_vad_toggle, bg=_BTN_BG,
             off_color=COLOR_TEXT_DIM, on_color=COLOR_GREEN,
         )
-        self._vad_btn.set_loading(True)
-        self._vad_btn.pack(side=tk.RIGHT, padx=(0, 2))
 
         # ── Grip dots — draw and auto-center ──
-        self._grips = [grip_l, grip_r]
+        self._grips = [grip_l]
 
         def _draw_grip_dots(event=None):
             for g in self._grips:
@@ -257,6 +259,7 @@ class WhisperTyper:
         self._row_bg_widgets = [row]
         self._btn_bg_widgets = [
             self._mic_btn, self._close_btn, self._gear_btn, self._vad_btn,
+            self._loading_bar, self._duration_badge,
         ] + self._grips
 
         # ── Dropdown variables (shown in settings popup) ─────────
@@ -305,30 +308,26 @@ class WhisperTyper:
     # ── System Tray Icon ─────────────────────────────────────────
 
     def _create_tray_icon(self) -> None:
-        """Create a system tray icon for show/hide, Cairn launch, and quit."""
+        """Create a system tray icon for show/hide and quit."""
         if not _HAS_TRAY:
             return
         self._tray_icon = pystray.Icon(
             "whisper_typer",
-            self._make_tray_image(connected=self._cairn_connected),
-            f"Whisper Typer — Cairn: {'Connected' if self._cairn_connected else 'Offline'}",
+            self._make_tray_image(),
+            "Whisper Typer",
             menu=pystray.Menu(
                 pystray.MenuItem("Show", self._tray_show, default=True),
-                pystray.MenuItem("Open Cairn Desktop", self._tray_open_cairn),
                 pystray.MenuItem("Quit", self._tray_quit),
             ),
         )
         threading.Thread(target=self._tray_icon.run, daemon=True).start()
 
     @staticmethod
-    def _make_tray_image(connected: bool = True):
-        """Create a mic tray icon — amber when Cairn connected, gray when offline."""
+    def _make_tray_image():
+        """Create a mic tray icon — amber circle with mic silhouette."""
         img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        # Circle color: amber if connected, gray if offline
-        circle_color = "#d4a030" if connected else "#666666"
-        draw.ellipse([4, 4, 60, 60], fill=circle_color)
-        # Simple mic shape (dark rectangle + rounded top)
+        draw.ellipse([4, 4, 60, 60], fill="#d4a030")
         draw.rounded_rectangle([24, 14, 40, 38], radius=6, fill="#12121f")
         draw.arc([20, 28, 44, 50], start=180, end=0, fill="#12121f", width=3)
         draw.line([32, 50, 32, 56], fill="#12121f", width=3)
@@ -348,40 +347,6 @@ class WhisperTyper:
         if hasattr(self, "_tray_icon"):
             self._tray_icon.stop()
         self.root.after(0, self._on_close)
-
-    def _tray_open_cairn(self, icon=None, item=None) -> None:
-        """Launch Cairn Desktop via cairn-launch.bat."""
-        import subprocess
-        from config import CAIRN_LAUNCH_BAT
-        try:
-            subprocess.Popen(
-                [CAIRN_LAUNCH_BAT],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
-            )
-        except Exception:
-            pass
-
-    def _cairn_health_loop(self) -> None:
-        """Background thread: poll Cairn backend health every 30s."""
-        import urllib.request
-        from config import CAIRN_API_URL, CAIRN_HEALTH_INTERVAL
-        while True:
-            try:
-                req = urllib.request.Request(f"{CAIRN_API_URL}/health", method="GET")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    self._cairn_connected = resp.status == 200
-            except Exception:
-                self._cairn_connected = False
-            # Update tray icon
-            try:
-                if hasattr(self, "_tray_icon") and self._tray_icon:
-                    self._tray_icon.icon = self._make_tray_image(connected=self._cairn_connected)
-                    self._tray_icon.title = f"Whisper Typer — Cairn: {'Connected' if self._cairn_connected else 'Offline'}"
-            except Exception:
-                pass
-            time.sleep(CAIRN_HEALTH_INTERVAL)
 
     def _apply_window_styles(self) -> None:
         """Apply WS_EX_NOACTIVATE + WS_EX_TOOLWINDOW and register hwnd for focus tracking."""
@@ -407,6 +372,22 @@ class WhisperTyper:
             ctypes.windll.user32.SetWindowRgn(hwnd, rgn, True)
         except Exception:
             pass
+
+    def _resize_window(self, skip_corners: bool = False) -> None:
+        """Recalculate and apply window size after widget changes.
+
+        skip_corners: skip SetWindowRgn during animation frames (prevents hitbox issues).
+        """
+        self.root.update_idletasks()
+        w = self.root.winfo_reqwidth()
+        h = self.root.winfo_reqheight()
+        x, y = self.root.winfo_x(), self.root.winfo_y()
+        self.root.geometry(f"{w}x{h}+{x}+{y}")
+        if not skip_corners:
+            self._apply_rounded_corners()
+        if self._snap_hwnd:
+            self._snap_bar_w = w
+            self._snap_bar_h = h
 
     # ── Drag handling ─────────────────────────────────────────────
 
@@ -568,32 +549,47 @@ class WhisperTyper:
     def _open_settings(self) -> None:
         """Open settings popup — translucent, rounded, wider."""
         _PANEL_BG = COLOR_TERMINAL_BG  # match the bar background
-        _PANEL_ALPHA = 0.85
+        _PANEL_ALPHA = 0.90
+        _FONT = "Cascadia Code"  # matches terminal font
+        _FONT_BODY = (_FONT, 8)
+        _FONT_LABEL = (_FONT, 7, "bold")
+        _FONT_SMALL = (_FONT, 6, "bold")
+        _FONT_MONO = (_FONT, 7)
+        _FG = "#e8e8f0"  # bright text — stays readable at 90% alpha
+        _FG_DIM = "#8888a0"  # labels — brighter than COLOR_TEXT_DIM
+
+        _CORNER_KEY = "#020102"  # transparency key for rounded corners
+        _BORDER_CLR = "#222233"
+        _CORNER_R = 12
+        _INSET = 4  # content inset — must clear corner radius
 
         self._settings_popup = tk.Toplevel(self.root)
         self._settings_popup.overrideredirect(True)
         self._settings_popup.attributes("-topmost", True)
-        self._settings_popup.attributes("-alpha", _PANEL_ALPHA)
-        self._settings_popup.configure(bg="#1a1a2a")
+        self._settings_popup.attributes("-alpha", 0)  # hidden until bg renders
+        self._settings_popup.configure(bg=_CORNER_KEY)
+        self._settings_popup.attributes("-transparentcolor", _CORNER_KEY)
 
-        panel = tk.Frame(self._settings_popup, bg=_PANEL_BG)
-        panel.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        panel_inner = tk.Frame(panel, bg=_PANEL_BG)
-        panel_inner.pack(fill=tk.BOTH, expand=True, padx=8, pady=6)
+        bg_canvas = tk.Canvas(self._settings_popup, bg=_CORNER_KEY, highlightthickness=0)
+        bg_canvas.pack(fill=tk.BOTH, expand=True)
+        content = tk.Frame(bg_canvas, bg=_PANEL_BG)
+        panel_inner = tk.Frame(content, bg=_PANEL_BG)
+        panel_inner.pack(fill=tk.BOTH, expand=True, padx=7, pady=5)
 
         # MIC selector
         p = panel_inner
         mic_row = tk.Frame(p, bg=_PANEL_BG)
         mic_row.pack(fill=tk.X, pady=(0, 4))
         tk.Label(
-            mic_row, text="MIC", font=("Segoe UI", 7, "bold"),
-            fg=COLOR_TEXT_DIM, bg=_PANEL_BG, width=4, anchor="w",
+            mic_row, text="MIC", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
         ).pack(side=tk.LEFT)
         device_names = [name for _, name in self._input_devices]
         DropdownButton(
             mic_row, textvariable=self._mic_var, values=device_names,
-            bg=COLOR_DROPDOWN_BG, fg=COLOR_DROPDOWN_FG,
+            bg=COLOR_DROPDOWN_BG, fg=_FG,
             hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
+            font=_FONT_MONO,
             on_change=lambda: self._on_mic_changed(),
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -601,95 +597,98 @@ class WhisperTyper:
         out_row = tk.Frame(p, bg=_PANEL_BG)
         out_row.pack(fill=tk.X)
         tk.Label(
-            out_row, text="OUT", font=("Segoe UI", 7, "bold"),
-            fg=COLOR_TEXT_DIM, bg=_PANEL_BG, width=4, anchor="w",
+            out_row, text="OUT", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
         ).pack(side=tk.LEFT)
         DropdownButton(
             out_row, textvariable=self._route_var, values=ROUTE_OPTIONS,
-            bg=COLOR_DROPDOWN_BG, fg=COLOR_DROPDOWN_FG,
+            bg=COLOR_DROPDOWN_BG, fg=_FG,
             hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
+            font=_FONT_MONO,
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         # ── Keybinds section ──
-        tk.Frame(p, bg=COLOR_BORDER, height=1).pack(fill=tk.X, pady=(6, 4))
+        tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
         kb_header = tk.Label(
-            p, text="KEYBINDS", font=("Segoe UI", 6, "bold"),
-            fg=COLOR_TEXT_DIM, bg=_PANEL_BG, anchor="w",
+            p, text="KEYBINDS", font=_FONT_SMALL,
+            fg=_FG_DIM, bg=_PANEL_BG, anchor="w",
         )
-        kb_header.pack(fill=tk.X, pady=(0, 2))
+        kb_header.pack(fill=tk.X, pady=(0, 3))
 
         # PTT keybind
+        _KB_BG = "#161620"
+        _KB_HOVER = "#1e1e30"
         ptt_row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
-        ptt_row.pack(fill=tk.X, pady=1)
+        ptt_row.pack(fill=tk.X, pady=2)
         tk.Label(
-            ptt_row, text="PTT", font=("Segoe UI", 7, "bold"),
-            fg=COLOR_TEXT_DIM, bg=_PANEL_BG, width=4, anchor="w",
+            ptt_row, text="PTT", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
         ).pack(side=tk.LEFT)
         ptt_combo = self._settings.get("ptt_hotkey")
         ptt_label = tk.Label(
             ptt_row, text=self._format_hotkey(ptt_combo),
-            font=("Consolas", 7), fg=COLOR_TEXT, bg="#12122a",
-            padx=6, pady=1, anchor="w",
+            font=_FONT_MONO, fg=_FG, bg=_KB_BG,
+            padx=6, pady=2, anchor="w",
         )
         ptt_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         ptt_clear = tk.Label(
-            ptt_row, text="\u00d7", font=("Segoe UI", 8),
-            fg=COLOR_TEXT_DIM, bg=_PANEL_BG, padx=2, cursor="arrow",
+            ptt_row, text="\u00d7", font=_FONT_BODY,
+            fg=_FG_DIM, bg=_PANEL_BG, padx=4, cursor="arrow",
         )
         ptt_clear.pack(side=tk.RIGHT)
         ptt_label.bind("<ButtonRelease-1>",
                        lambda e: self._start_keybind_capture(ptt_label, "ptt_hotkey"))
         ptt_clear.bind("<ButtonRelease-1>",
                        lambda e: self._clear_keybind(ptt_label, "ptt_hotkey"))
-        ptt_label.bind("<Enter>", lambda e: ptt_label.configure(bg="#1a1a3a"))
-        ptt_label.bind("<Leave>", lambda e: ptt_label.configure(bg="#12122a"))
+        ptt_label.bind("<Enter>", lambda e: ptt_label.configure(bg=_KB_HOVER))
+        ptt_label.bind("<Leave>", lambda e: ptt_label.configure(bg=_KB_BG))
         ptt_clear.bind("<Enter>", lambda e: ptt_clear.configure(fg=COLOR_RED))
-        ptt_clear.bind("<Leave>", lambda e: ptt_clear.configure(fg=COLOR_TEXT_DIM))
+        ptt_clear.bind("<Leave>", lambda e: ptt_clear.configure(fg=_FG_DIM))
 
         # VAD keybind
         vad_row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
-        vad_row.pack(fill=tk.X, pady=1)
+        vad_row.pack(fill=tk.X, pady=2)
         tk.Label(
-            vad_row, text="VAD", font=("Segoe UI", 7, "bold"),
-            fg=COLOR_TEXT_DIM, bg=_PANEL_BG, width=4, anchor="w",
+            vad_row, text="VAD", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
         ).pack(side=tk.LEFT)
         vad_combo = self._settings.get("vad_hotkey")
         vad_label = tk.Label(
             vad_row, text=self._format_hotkey(vad_combo),
-            font=("Consolas", 7), fg=COLOR_TEXT if vad_combo else COLOR_TEXT_DIM,
-            bg="#12122a", padx=6, pady=1, anchor="w",
+            font=_FONT_MONO, fg=_FG if vad_combo else _FG_DIM,
+            bg=_KB_BG, padx=6, pady=2, anchor="w",
         )
         vad_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         vad_clear = tk.Label(
-            vad_row, text="\u00d7", font=("Segoe UI", 8),
-            fg=COLOR_TEXT_DIM, bg=_PANEL_BG, padx=2, cursor="arrow",
+            vad_row, text="\u00d7", font=_FONT_BODY,
+            fg=_FG_DIM, bg=_PANEL_BG, padx=4, cursor="arrow",
         )
         vad_clear.pack(side=tk.RIGHT)
         vad_label.bind("<ButtonRelease-1>",
                        lambda e: self._start_keybind_capture(vad_label, "vad_hotkey"))
         vad_clear.bind("<ButtonRelease-1>",
                        lambda e: self._clear_keybind(vad_label, "vad_hotkey"))
-        vad_label.bind("<Enter>", lambda e: vad_label.configure(bg="#1a1a3a"))
-        vad_label.bind("<Leave>", lambda e: vad_label.configure(bg="#12122a"))
+        vad_label.bind("<Enter>", lambda e: vad_label.configure(bg=_KB_HOVER))
+        vad_label.bind("<Leave>", lambda e: vad_label.configure(bg=_KB_BG))
         vad_clear.bind("<Enter>", lambda e: vad_clear.configure(fg=COLOR_RED))
-        vad_clear.bind("<Leave>", lambda e: vad_clear.configure(fg=COLOR_TEXT_DIM))
+        vad_clear.bind("<Leave>", lambda e: vad_clear.configure(fg=_FG_DIM))
 
         # ── Toggles section ──
-        tk.Frame(p, bg=COLOR_BORDER, height=1).pack(fill=tk.X, pady=(6, 4))
+        tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
 
         # Snap to Terminal toggle (also controls transparency)
         snap_on = bool(self._snap_hwnd)
         snap_check = "\u2713" if snap_on else "\u2002"
-        snap_fg = COLOR_AMBER if snap_on else COLOR_TEXT_DIM
+        snap_fg = COLOR_AMBER if snap_on else _FG_DIM
         snap_row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
         snap_row.pack(fill=tk.X, pady=2)
         snap_box = tk.Label(
-            snap_row, text=f"[{snap_check}]", font=("Consolas", 8),
+            snap_row, text=f"[{snap_check}]", font=_FONT_MONO,
             fg=snap_fg, bg=_PANEL_BG, padx=(4),
         )
         snap_box.pack(side=tk.LEFT)
         snap_txt = tk.Label(
-            snap_row, text="Snap to Terminal", font=("Segoe UI", 8),
+            snap_row, text="Snap to Terminal", font=_FONT_BODY,
             fg=snap_fg, bg=_PANEL_BG, anchor="w",
         )
         snap_txt.pack(side=tk.LEFT, padx=(2, 0))
@@ -697,15 +696,16 @@ class WhisperTyper:
             w.bind("<Enter>", lambda e, b=snap_box, t=snap_txt: (
                 b.configure(fg=COLOR_AMBER), t.configure(fg=COLOR_AMBER)))
             w.bind("<Leave>", lambda e, b=snap_box, t=snap_txt, on=snap_on: (
-                b.configure(fg=COLOR_AMBER if on else COLOR_TEXT_DIM),
-                t.configure(fg=COLOR_AMBER if on else COLOR_TEXT_DIM)))
+                b.configure(fg=COLOR_AMBER if on else _FG_DIM),
+                t.configure(fg=COLOR_AMBER if on else _FG_DIM)))
             w.bind("<ButtonRelease-1>", lambda e: self._toggle_snap())
 
         # Position above or below — dynamically choose based on screen space
         self._settings_popup.update_idletasks()
+        content.update_idletasks()
         popup_w = max(self.root.winfo_width(), 220)
         x = self.root.winfo_x()
-        h = self._settings_popup.winfo_reqheight()
+        h = content.winfo_reqheight() + 2 * _INSET
         bar_bottom = self.root.winfo_y() + self.root.winfo_height()
         screen_h = self.root.winfo_screenheight()
         if bar_bottom + h > screen_h - 48:
@@ -714,17 +714,32 @@ class WhisperTyper:
             y = bar_bottom
         self._settings_popup.geometry(f"{popup_w}x{h}+{x}+{y}")
 
-        # Round the popup corners
-        def _round_popup():
+        # Render rounded background via PIL — no SetWindowRgn, no corner clipping
+        def _render_bg():
             try:
-                hwnd = int(self._settings_popup.wm_frame(), 16)
+                if not (self._settings_popup and self._settings_popup.winfo_exists()):
+                    return
                 pw = self._settings_popup.winfo_width()
                 ph = self._settings_popup.winfo_height()
-                rgn = ctypes.windll.gdi32.CreateRoundRectRgn(0, 0, pw + 1, ph + 1, 16, 16)
-                ctypes.windll.user32.SetWindowRgn(hwnd, rgn, True)
+                def _hex(c):
+                    return (int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16))
+                img = Image.new("RGB", (pw, ph), _hex(_CORNER_KEY))
+                draw = ImageDraw.Draw(img)
+                draw.rounded_rectangle(
+                    [0, 0, pw - 1, ph - 1], radius=_CORNER_R,
+                    fill=_hex(_PANEL_BG), outline=_hex(_BORDER_CLR), width=1,
+                )
+                photo = ImageTk.PhotoImage(img)
+                bg_canvas.create_image(0, 0, anchor="nw", image=photo)
+                bg_canvas._photo = photo
+                bg_canvas.create_window(
+                    _INSET, _INSET, window=content, anchor="nw",
+                    width=pw - 2 * _INSET, height=ph - 2 * _INSET,
+                )
+                self._settings_popup.attributes("-alpha", _PANEL_ALPHA)
             except Exception:
                 pass
-        self._settings_popup.after(10, _round_popup)
+        self._settings_popup.after(10, _render_bg)
 
         # Escape to close
         self._settings_popup.bind("<Escape>", lambda e: self._close_settings())
@@ -803,10 +818,13 @@ class WhisperTyper:
         self._draw_close_icon(self._close_color)
         self._draw_gear_icon(COLOR_TEXT_DIM)
         if hasattr(self._vad_btn, '_active'):
-            if self._vad_btn._active:
-                self._vad_btn._draw_bars(self._vad_btn._REST_HEIGHTS, self._vad_btn._on_color)
-            else:
-                self._vad_btn._draw_off()
+            if self._vad_btn._active and not self._vad_btn._recording and not self._vad_btn._processing:
+                self._vad_btn._draw_bars(self._vad_btn._REST_HEIGHTS, self._vad_btn._on_color, solid=True)
+            elif not self._vad_btn._active:
+                self._vad_btn._draw_off()  # outline
+        # Re-render duration badge with new bg
+        if hasattr(self, '_duration_badge') and self._duration_badge._visible:
+            self._duration_badge._render()
         # Redraw grip dots (they need visible color in transparent mode)
         if hasattr(self, '_draw_grip_dots'):
             self._draw_grip_dots()
@@ -827,12 +845,16 @@ class WhisperTyper:
             ))
             return
         self._snap_hwnd = hwnd
-        self._snap_bar_w = self.root.winfo_width()
-        self._snap_bar_h = self.root.winfo_height()
         self._snap_tk_hwnd = int(self.root.wm_frame(), 16)
-        # Enable transparency when snapping
+        # Enable transparency and hide grips when snapping
         if not self._transparent_mode:
             self._set_transparency(True)
+        for g in self._grips:
+            g.configure(width=0)
+        # Resize window after hiding grips, then store snapped dimensions
+        self._resize_window()
+        self._snap_bar_w = self.root.winfo_width()
+        self._snap_bar_h = self.root.winfo_height()
         # Defer — we're inside a click handler on the settings popup
         def _do_snap():
             self._close_settings()
@@ -847,9 +869,17 @@ class WhisperTyper:
         if self._snap_id:
             self.root.after_cancel(self._snap_id)
             self._snap_id = None
-        # Disable transparency when unsnapping
+        # Show grips when unsnapping — set width first, then toggle transparency
+        # which re-renders everything (including grip dots) with the correct bg
+        for g in self._grips:
+            g.configure(width=8)
         if self._transparent_mode:
-            self._set_transparency(False)
+            self._set_transparency(False)  # redraws grip dots with solid bg
+        else:
+            if hasattr(self, '_draw_grip_dots'):
+                self._draw_grip_dots()
+        # Resize window to accommodate restored grips
+        self._resize_window()
 
     # Reusable RECT (avoid recreating every call)
     class _RECT(ctypes.Structure):
@@ -863,7 +893,7 @@ class WhisperTyper:
     _SWP_FLAGS = _SWP_NOSIZE | _SWP_NOZORDER | _SWP_NOACTIVATE
 
     def _snap_poll(self) -> None:
-        """Track the snapped window position via polling (~120fps)."""
+        """Track the snapped window position via polling (~1ms)."""
         try:
             if not self._snap_hwnd or not self._user32.IsWindow(self._snap_hwnd):
                 self._snap_hwnd = None
@@ -881,7 +911,7 @@ class WhisperTyper:
 
             # Center horizontally on terminal, flush with bottom
             x = rect.left + (rect.right - rect.left - self._snap_bar_w) // 2
-            y = rect.bottom - self._snap_bar_h - 8
+            y = rect.bottom - self._snap_bar_h - 16
             if x != self._snap_last_x or y != self._snap_last_y:
                 self._snap_last_x = x
                 self._snap_last_y = y
@@ -892,7 +922,7 @@ class WhisperTyper:
             pass
 
         if self._snap_hwnd:
-            self._snap_id = self.root.after(8, self._snap_poll)
+            self._snap_id = self.root.after(1, self._snap_poll)
 
     # ── Initialization (after mainloop starts) ────────────────────
 
@@ -944,18 +974,19 @@ class WhisperTyper:
 
         threading.Thread(target=_preload, daemon=True).start()
 
-        # Start Cairn health check background thread
-        threading.Thread(target=self._cairn_health_loop, daemon=True).start()
-
         # Don't auto-restore VAD — user must explicitly enable it each session
 
         # Auto-snap to terminal if one is available
         hwnd = self._find_terminal_hwnd()
         if hwnd:
             self._snap_hwnd = hwnd
+            self._snap_tk_hwnd = int(self.root.wm_frame(), 16)
+            # Hide grips when snapped and resize
+            for g in self._grips:
+                g.configure(width=0)
+            self._resize_window()
             self._snap_bar_w = self.root.winfo_width()
             self._snap_bar_h = self.root.winfo_height()
-            self._snap_tk_hwnd = int(self.root.wm_frame(), 16)
             self._snap_poll()
 
     # ── State machine ─────────────────────────────────────────────
@@ -974,6 +1005,8 @@ class WhisperTyper:
         elif state == STATE_RECORDING:
             self._mic_btn.set_state("recording", COLOR_RED)
             self._recording_start = time.monotonic()
+            # Show duration badge (already packed at width=0 from model load)
+            self._duration_badge.show()
             self._update_elapsed()
 
         elif state == STATE_TRANSCRIBING:
@@ -987,20 +1020,35 @@ class WhisperTyper:
             self._cancel_elapsed_timer()
 
     def _update_elapsed(self) -> None:
-        """Update status with elapsed recording time."""
+        """Update duration badge next to mic icon."""
         if self._state != STATE_RECORDING:
             return
         elapsed = time.monotonic() - self._recording_start
-        self._status.configure(
-            text=f"Recording... {elapsed:.1f}s",
-            fg=COLOR_RED,
-        )
-        self._elapsed_timer_id = self.root.after(100, self._update_elapsed)
+        mins, secs = divmod(int(elapsed), 60)
+        self._duration_badge.set_time(f"{mins}:{secs:02d}")
+        self._elapsed_timer_id = self.root.after(200, self._update_elapsed)
 
     def _cancel_elapsed_timer(self) -> None:
         if self._elapsed_timer_id:
             self.root.after_cancel(self._elapsed_timer_id)
             self._elapsed_timer_id = None
+        self._duration_badge.hide()  # animated collapse
+
+    def _process_next_or_idle(self):
+        """Process next queued audio segment, or return to idle."""
+        if self._pending_audio:
+            audio = self._pending_audio.pop(0)
+            self._set_state(STATE_TRANSCRIBING)
+            threading.Thread(
+                target=self._do_transcribe, args=(audio,), daemon=True
+            ).start()
+        else:
+            if self._recorder and self._recorder.vad_active:
+                # Stop processing animation, return to static
+                self._vad_btn.set_processing(False)
+                self._vad_btn.set_color(COLOR_GREEN)
+            self._vad_cooldown_until = time.time() + 0.3
+            self.root.after(200, lambda: self._set_state(STATE_IDLE))
 
     # ── Button handlers ───────────────────────────────────────────
 
@@ -1092,9 +1140,25 @@ class WhisperTyper:
 
         if kind == "model_loaded":
             self._model_ready = True
+            # Swap loading bar for real icons
+            self._loading_bar.stop()
+            self._loading_bar.pack_forget()
             self._mic_btn.set_disabled(False)
             self._mic_btn.set_state("idle", COLOR_TEXT_DIM)
-            self._vad_btn.set_loading(False)
+            self._mic_btn.pack(side=tk.LEFT, padx=(2, 3))
+            # Pre-pack badge at width=0 so pack order is: mic → badge → ... → vad
+            self._duration_badge.pack(side=tk.LEFT, padx=(2, 0))
+            self._vad_btn.pack(side=tk.RIGHT, padx=(0, 2))
+            # Re-render all icons with correct bg (especially in transparent mode)
+            self._draw_close_icon(self._close_color)
+            self._draw_gear_icon(COLOR_TEXT_DIM)
+            self._vad_btn._draw_off()
+            if hasattr(self, '_draw_grip_dots'):
+                self._draw_grip_dots()
+            # Resize window to fit new widgets — defer a second pass
+            # so geometry is fully settled before SetWindowRgn
+            self._resize_window()
+            self.root.after(50, self._resize_window)
             if self._state == STATE_IDLE:
                 self._status.configure(text="Ready", fg=COLOR_TEXT)
 
@@ -1118,16 +1182,13 @@ class WhisperTyper:
                 self._set_state(STATE_RECORDING)
                 self._vad_btn.set_recording(True)
             elif self._state in (STATE_TRANSCRIBING, STATE_TYPING):
-                # Show that we're listening again while still processing
-                self._vad_btn.set_color(COLOR_GREEN)
+                # Override processing animation with energetic recording animation
                 self._vad_btn.set_recording(True)
 
         elif kind == "vad_speech_end":
-            if self._state == STATE_TRANSCRIBING:
-                self._vad_btn.set_recording(False)
-            elif self._state == STATE_TYPING:
-                self._vad_btn.set_recording(False)
-                self._vad_btn.set_color(COLOR_GREEN)
+            if self._state in (STATE_TRANSCRIBING, STATE_TYPING):
+                # Back to gentle processing animation (not static)
+                self._vad_btn.set_processing(True)
 
         elif kind == "vad_ready":
             self._vad_btn.set_active(True)
@@ -1136,67 +1197,47 @@ class WhisperTyper:
 
         elif kind == "recording_done":
             audio = event[1]
-            self._set_state(STATE_TRANSCRIBING)
-            if self._recorder and self._recorder.vad_active:
-                self._vad_btn.set_recording(False)
-            threading.Thread(
-                target=self._do_transcribe, args=(audio,), daemon=True
-            ).start()
+            if self._state in (STATE_TRANSCRIBING, STATE_TYPING):
+                # Already processing — queue this audio for later
+                self._pending_audio.append(audio)
+            else:
+                self._set_state(STATE_TRANSCRIBING)
+                if self._recorder and self._recorder.vad_active:
+                    # Transition to gentle processing animation
+                    self._vad_btn.set_processing(True)
+                threading.Thread(
+                    target=self._do_transcribe, args=(audio,), daemon=True
+                ).start()
 
         elif kind == "recording_empty":
-            self._set_state(STATE_IDLE)
-            if self._recorder and self._recorder.vad_active:
-                self._vad_btn.set_recording(False)
-                self._vad_btn.set_color(COLOR_GREEN)
-            self._status.configure(text="No speech detected", fg=COLOR_TEXT_DIM)
-            self.root.after(2000, lambda: (
-                self._status.configure(text="Ready", fg=COLOR_TEXT)
-                if self._state == STATE_IDLE else None
-            ))
+            # Only go idle if nothing is in-flight
+            if self._state == STATE_RECORDING:
+                self._set_state(STATE_IDLE)
+                if self._recorder and self._recorder.vad_active:
+                    self._vad_btn.set_processing(False)
+            elif self._state in (STATE_TRANSCRIBING, STATE_TYPING):
+                # Keep processing animation going
+                if self._recorder and self._recorder.vad_active:
+                    self._vad_btn.set_processing(True)
 
         elif kind == "transcription_result":
             text = event[1]
-            # Ensure transcribing animation shows for at least 400ms
-            elapsed_ms = int((time.monotonic() - getattr(self, '_transcribe_start', 0)) * 1000)
-            delay = max(0, 400 - elapsed_ms)
-
-            def _finish_transcription():
-                # Guard: only proceed if still transcribing (user may have interrupted)
-                if self._state != STATE_TRANSCRIBING:
-                    return
-                if text:
-                    self._set_state(STATE_TYPING)
-                    self._status.configure(
-                        text=text[:40] + ("..." if len(text) > 40 else ""),
-                        fg=COLOR_GREEN,
-                    )
-                    route = self._route_var.get()
-                    threading.Thread(
-                        target=self._do_type, args=(text, route), daemon=True
-                    ).start()
-                else:
-                    self._set_state(STATE_IDLE)
-                    if self._recorder and self._recorder.vad_active:
-                        self._vad_btn.set_color(COLOR_GREEN)
-                    self._status.configure(text="No speech detected", fg=COLOR_TEXT_DIM)
-                    self.root.after(2000, lambda: (
-                        self._status.configure(text="Ready", fg=COLOR_TEXT)
-                        if self._state == STATE_IDLE else None
-                    ))
-
-            if delay > 0:
-                self.root.after(delay, _finish_transcription)
+            if text:
+                self._set_state(STATE_TYPING)
+                self._status.configure(
+                    text=text[:40] + ("..." if len(text) > 40 else ""),
+                    fg=COLOR_GREEN,
+                )
+                route = self._route_var.get()
+                threading.Thread(
+                    target=self._do_type, args=(text, route), daemon=True
+                ).start()
             else:
-                _finish_transcription()
+                self._process_next_or_idle()
 
         elif kind == "typing_done":
-            # Always return to idle after typing attempt
-            if self._recorder and self._recorder.vad_active:
-                self._vad_btn.set_recording(False)
-                self._vad_btn.set_color(COLOR_GREEN)
-            # 1s cooldown so VAD doesn't immediately retrigger from tail-end audio
-            self._vad_cooldown_until = time.time() + 1.0
-            self.root.after(600, lambda: self._set_state(STATE_IDLE))
+            self._typing_in_progress = False
+            self._process_next_or_idle()
 
         elif kind == "audio_error":
             self._status.configure(text=f"Error: {event[1]}", fg=COLOR_RED)

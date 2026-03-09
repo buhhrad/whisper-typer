@@ -154,29 +154,6 @@ def send_to_terminal(text: str) -> bool:
     return True
 
 
-# ── Cairn integration ─────────────────────────────────────────────────
-
-def send_to_cairn(text: str) -> bool:
-    """Send transcribed text to Cairn backend via /voice/input."""
-    import json
-    import urllib.request
-    from config import CAIRN_API_URL
-    try:
-        data = json.dumps({"text": text, "source": "whisper_typer"}).encode()
-        req = urllib.request.Request(
-            f"{CAIRN_API_URL}/voice/input",
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status == 200
-    except Exception:
-        # Fallback: copy to clipboard
-        _set_clipboard(text)
-        return False
-
-
 # ── Public API ────────────────────────────────────────────────────────
 
 def type_text(text: str, route: str = "Paste + Enter (terminal)") -> bool:
@@ -186,13 +163,6 @@ def type_text(text: str, route: str = "Paste + Enter (terminal)") -> bool:
 
     if route == "Auto Terminal (background)":
         return send_to_terminal(text)
-
-    if route == "Send to Cairn":
-        ok = send_to_cairn(text)
-        if not ok:
-            # Already copied to clipboard by fallback
-            pass
-        return ok
 
     if route == "Clipboard Only":
         return _set_clipboard(text)

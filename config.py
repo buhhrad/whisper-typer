@@ -53,10 +53,9 @@ ROUTE_PASTE_ENTER = "Paste + Enter (terminal)"
 ROUTE_PASTE = "Paste Only (Ctrl+V)"
 ROUTE_CLIPBOARD = "Clipboard Only"
 ROUTE_TYPE_KEYS = "Type Keys (slow, universal)"
-ROUTE_SEND_CAIRN = "Send to Cairn"
 ROUTE_AUTO_TERMINAL = "Auto Terminal (background)"
 
-ROUTE_OPTIONS = [ROUTE_PASTE_ENTER, ROUTE_PASTE, ROUTE_CLIPBOARD, ROUTE_TYPE_KEYS, ROUTE_SEND_CAIRN, ROUTE_AUTO_TERMINAL]
+ROUTE_OPTIONS = [ROUTE_PASTE_ENTER, ROUTE_PASTE, ROUTE_CLIPBOARD, ROUTE_TYPE_KEYS, ROUTE_AUTO_TERMINAL]
 ROUTE_DEFAULT = ROUTE_PASTE_ENTER
 
 # Window class names for terminal auto-detection (tried in order)
@@ -67,12 +66,7 @@ TERMINAL_WINDOW_CLASSES = [
 # Title substrings to prefer when multiple terminals exist (case-insensitive)
 TERMINAL_TITLE_HINTS = ["powershell", "cmd"]
 # Title substrings to SKIP — avoids sending to the wrong terminal
-TERMINAL_TITLE_EXCLUDE = ["cairn-backend", "cairn-desktop", "whisper-typer"]
-
-# ── Cairn integration ────────────────────────────────────────────────
-CAIRN_API_URL = "http://127.0.0.1:5187"
-CAIRN_HEALTH_INTERVAL = 30
-CAIRN_LAUNCH_BAT = r"D:\Coding\cairn-desktop\cairn-launch.bat"
+TERMINAL_TITLE_EXCLUDE = ["whisper-typer"]
 
 # ── State machine ─────────────────────────────────────────────────────
 STATE_IDLE = "idle"
