@@ -3,7 +3,7 @@
 Cross-platform approach:
   - compat backend for clipboard, terminal discovery, and focus management
   - pynput keyboard Controller for paste and Enter keystrokes
-  - Auto Terminal mode: finds a terminal window and sends text there
+  - Send to Terminal mode: finds a terminal window and sends text there
 """
 
 from __future__ import annotations
@@ -87,18 +87,18 @@ def send_to_terminal(text: str) -> bool:
 
 # ── Public API ────────────────────────────────────────────────────────
 
-def type_text(text: str, route: str = "Auto Terminal (background)") -> bool:
+def type_text(text: str, route: str = "Send to Terminal (paste + enter)") -> bool:
     """Output text using the selected routing mode."""
     if not text:
         return False
 
-    if route == "Auto Terminal (background)":
+    if route == "Send to Terminal (paste + enter)":
         return send_to_terminal(text)
 
-    if route == "Clipboard Only":
+    if route == "Clipboard":
         return _set_clipboard(text)
 
-    # Paste Only: clipboard → paste shortcut
+    # Auto Paste: clipboard → paste shortcut into focused window
     if not _set_clipboard(text):
         print("[typer] clipboard failed", file=sys.stderr)
         return False

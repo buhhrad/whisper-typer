@@ -49,9 +49,9 @@ COLOR_DROPDOWN_BG = "#0e0e1a"
 COLOR_DROPDOWN_FG = "#b0b0c8"
 
 # ── Output routing ────────────────────────────────────────────────────
-ROUTE_AUTO_TERMINAL = "Auto Terminal (background)"
-ROUTE_PASTE = "Paste Only (Ctrl+V)"
-ROUTE_CLIPBOARD = "Clipboard Only"
+ROUTE_AUTO_TERMINAL = "Send to Terminal (paste + enter)"
+ROUTE_PASTE = "Auto Paste (focused window)"
+ROUTE_CLIPBOARD = "Clipboard"
 
 ROUTE_OPTIONS = [ROUTE_AUTO_TERMINAL, ROUTE_PASTE, ROUTE_CLIPBOARD]
 ROUTE_DEFAULT = ROUTE_AUTO_TERMINAL

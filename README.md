@@ -30,7 +30,7 @@ Offline voice-to-text that works anywhere — type into any app with your voice,
 A small floating widget that transcribes your speech locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and types it wherever you need it. Use it to voice-type into any application, or snap it to your terminal to talk directly to CLI agents like Claude Code, Codex, or any command-line tool.
 
 - **Works everywhere** — Voice-type into any focused window on your computer
-- **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, and restores your focus. Talk to CLI tools without switching windows.
+- **Send to Terminal** — Finds a terminal in the background, pastes your text + Enter, and restores your focus. Talk to CLI tools without switching windows.
 - **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay and follows the window
 - **Lightweight** — Pure Python, no Electron. Starts in seconds.
 - **Queued transcription** — Keeps recording while transcribing so pauses in your speech don't lose words
@@ -45,9 +45,9 @@ A small floating widget that transcribes your speech locally using [faster-whisp
 - **Queued Transcription** — Overlapping speech segments are queued and processed sequentially — no speech is lost
 
 ### Output Routing
-- **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus. Great for multitasking with CLI agents.
-- **Paste Only** — Copies to clipboard and sends `Ctrl+V` to whatever window is focused
-- **Clipboard Only** — Copies to clipboard, nothing else
+- **Send to Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus. Great for multitasking with CLI agents.
+- **Auto Paste** — Pastes directly into whatever window is focused
+- **Clipboard** — Copies to clipboard for manual pasting
 
 ### Interface
 - **Always-on-Top** — Stays visible while you work in other apps

@@ -586,7 +586,7 @@ class WhisperTyper:
             out_row, text="OUT", font=_FONT_LABEL,
             fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
         ).pack(side=tk.LEFT)
-        # Filter "Auto Terminal" route if the platform can't find terminals
+        # Filter "Send to Terminal" route if the platform can't find terminals
         _routes = ROUTE_OPTIONS
         if not self._platform.supports_terminal_finding:
             from config import ROUTE_AUTO_TERMINAL
