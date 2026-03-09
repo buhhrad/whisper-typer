@@ -23,6 +23,8 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 
 </div>
 
+---
+
 ## What is this?
 
 A tiny, always-on-top floating widget that transcribes your speech in real-time using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and routes the text wherever you need it — your terminal, clipboard, or any focused window.
@@ -35,9 +37,9 @@ It snaps to your terminal as a transparent overlay and stays out of the way unti
 - **Always-on VAD** — Silero VAD detects speech automatically, completely hands-free
 - **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay, follows the window
 - **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus
-- **Queued transcription** — Overlapping speech segments are captured so pauses don't cut you off
-- **System tray** — Minimizes to tray, stays out of the way
-- **Fully configurable** — Model, device, hotkeys, mic, output routing — all from the settings popup
+- **Queued Transcription** — Overlapping speech segments are captured so pauses don't cut you off
+- **System Tray** — Minimizes to tray, stays out of the way
+- **Fully Configurable** — Model, device, hotkeys, mic, output routing — all from the settings popup
 
 ## Quick Start
 
@@ -47,7 +49,7 @@ cd whisper-typer
 python install.py
 ```
 
-The installer checks your environment, installs dependencies, and optionally pre-downloads a whisper model.
+The installer checks your environment, installs dependencies, and optionally pre-downloads a Whisper model.
 
 Or install manually:
 
@@ -73,7 +75,7 @@ whisper-typer --list-devices      # List available microphones
 |--------|-----|
 | **Manual record** | Click the mic icon |
 | **Push-to-talk** | Hold `Ctrl+Shift+Space`, release to transcribe |
-| **Always-on VAD** | Click the bars icon — speaks are detected automatically |
+| **Always-on VAD** | Click the bars icon — speech is detected automatically |
 | **Mute (VAD)** | `Ctrl+Shift+M` while VAD is active |
 | **Settings** | Click the gear icon |
 | **Snap to terminal** | Settings → Snap to Terminal |
@@ -88,7 +90,7 @@ All models run locally via [faster-whisper](https://github.com/SYSTRAN/faster-wh
 | `base` | 150 MB | Fast | Good | |
 | `small` | 500 MB | Medium | Better | |
 | `medium` | 1.5 GB | Slow | Great | |
-| `large-v3-turbo` | 1.6 GB | Fast | Great | **← recommended** |
+| `large-v3-turbo` | 1.6 GB | Fast | Great | **recommended** |
 | `large-v3` | 3 GB | Slowest | Best | |
 
 Change the model in settings (gear icon → Whisper section) or via `--model`.
