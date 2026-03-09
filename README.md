@@ -10,7 +10,7 @@
 
 **Local voice typing that lives in your terminal.**
 
-Talk. Transcribe. Type. No cloud. No latency. No subscription.
+Offline voice-to-text that runs entirely on your machine.
 <br>
 <img src="demo.gif" width="172" />
 <br><br><br>
@@ -27,13 +27,12 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 
 ## Why Whisper Typer?
 
-Voice typing apps like [Wispr Flow](https://wisprflow.ai/) and [Superwhisper](https://superwhisper.com/) charge $8-12/month for something your computer can do locally for free. Whisper Typer is a lightweight, open-source alternative that runs entirely on your machine — no accounts, no cloud, no recurring fees.
+A small floating widget that snaps to your terminal as a transparent overlay and transcribes your speech locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Your audio never leaves your machine.
 
-**What makes it different:**
-- **Terminal-native** — Snaps to Windows Terminal as a transparent overlay. No other voice typing tool does this.
-- **Zero bloat** — Single Python file, no Electron, no web stack. Starts in seconds.
-- **Queued transcription** — Keeps recording while transcribing. Pauses in your speech don't lose words.
-- **Truly offline** — Your audio never leaves your machine. Not even once.
+- **Terminal-native** — Snaps to Windows Terminal as a transparent overlay and follows the window
+- **Lightweight** — Pure Python, no Electron. Starts in seconds.
+- **Queued transcription** — Keeps recording while transcribing so pauses in your speech don't lose words
+- **Fully offline** — No accounts, no cloud, no internet required
 
 ## Features
 
@@ -165,7 +164,7 @@ Audio captured during transcription/typing is queued and processed sequentially 
 
 ## Privacy
 
-Whisper Typer processes everything locally on your machine. No audio is sent to any server, no account is required, and no telemetry is collected. Your voice data stays on your computer.
+Whisper Typer processes everything locally. Your audio never leaves your machine and no telemetry is collected.
 
 ## FAQ
 
@@ -193,6 +192,25 @@ Whisper supports 99+ languages. Accuracy depends on the model size — larger mo
 <summary><b>How is this different from Windows Speech Recognition?</b></summary>
 Whisper is dramatically more accurate, supports more languages, and works offline with no training. Windows Speech Recognition requires online connectivity for its best models and struggles with accents and technical vocabulary.
 </details>
+
+## Roadmap
+
+**Phase 1 — Polish**
+- [ ] VAD sensitivity slider
+- [ ] macOS support (abstraction layer exists, needs testing)
+- [ ] Linux support (same as above)
+- [ ] Custom dictionary for frequently used words and names
+
+**Phase 2 — Developer Features**
+- [ ] AI text cleanup (remove filler words, fix grammar)
+- [ ] Voice commands ("new line", "period", "select all", "undo")
+- [ ] Per-app output profiles (different formatting for terminal vs Slack vs code editor)
+- [ ] Multi-monitor snap (snap to any window, not just terminal)
+
+**Phase 3 — Distribution**
+- [ ] Auto-updates
+- [ ] Standalone .exe installer (no Python required)
+- [ ] Plugin system for custom output routes
 
 ## Contributing
 
