@@ -20,7 +20,8 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 </div>
 
 ---
-(https://github.com/user-attachments/assets/f3f9d8a9-1e34-417e-b69a-5f63b076eb2b)
+[Recording 2026-03-09 022733.webm](https://github.com/user-attachments/assets/88890405-3c4d-4c15-bb77-7bea53b298bb)
+
 
 ## What is this?
 
