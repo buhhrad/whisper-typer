@@ -21,7 +21,13 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 
 ---
 
+## Demo
 
+<div align="center">
+  <img src="demo.gif" width="300" />
+</div>
+
+---
 
 ## What is this?
 
