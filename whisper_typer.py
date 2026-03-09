@@ -362,6 +362,10 @@ class WhisperTyper:
         self.root.geometry(f"{w}x{h}+{x}+{y}")
         if not skip_corners:
             self._apply_rounded_corners()
+        elif self._transparent_mode:
+            # Clear stale region during animation to prevent it from clipping
+            # widgets (like the close button) that move as the window grows.
+            self._platform.set_rounded_corners(self.root, radius=10, enable=False)
         if self._snap_hwnd:
             self._snap_bar_w = w
             self._snap_bar_h = h

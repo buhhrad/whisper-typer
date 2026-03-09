@@ -20,6 +20,7 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 [![Python](https://img.shields.io/badge/Python_3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![faster-whisper](https://img.shields.io/badge/powered_by-faster--whisper-orange)](https://github.com/SYSTRAN/faster-whisper)
+[![VirusTotal](https://img.shields.io/badge/VirusTotal-0%2F63_clean-brightgreen?logo=virustotal)](https://www.virustotal.com/gui/file/134f259ba2b6411824fd07ad637f7e2956b275e0d365f592273ee762da926ee0/detection)
 
 </div>
 
