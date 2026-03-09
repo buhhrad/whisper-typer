@@ -141,6 +141,19 @@ Audio captured during transcription/typing is queued and processed sequentially 
 
 </details>
 
+## Acknowledgments
+
+Built on the shoulders of these excellent open-source projects:
+
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — CTranslate2-powered Whisper inference (up to 4x faster than OpenAI's implementation)
+- [Silero VAD](https://github.com/snakers4/silero-vad) — Pre-trained voice activity detection model
+- [OpenAI Whisper](https://github.com/openai/whisper) — The speech recognition model that started it all
+- [sounddevice](https://github.com/spatialaudio/python-sounddevice) — PortAudio bindings for Python
+- [pynput](https://github.com/moses-palmer/pynput) — Cross-platform input monitoring and simulation
+- [pystray](https://github.com/moses-palmer/pystray) — System tray icon support
+- [Pillow](https://github.com/python-pillow/Pillow) — Image processing for anti-aliased UI rendering
+- [PyTorch](https://github.com/pytorch/pytorch) — ML framework powering Silero VAD
+
 ## License
 
-[MIT](LICENSE) — do whatever you want with it.
+[MIT](LICENSE)
