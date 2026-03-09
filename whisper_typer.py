@@ -45,7 +45,6 @@ import settings as user_settings
 from config import (
     COLOR_AMBER,
     COLOR_BLUE,
-    COLOR_CLICKABLE_BG,
     COLOR_DROPDOWN_BG,
     COLOR_GREEN,
     COLOR_RED,
@@ -157,7 +156,7 @@ class WhisperTyper:
 
         # ── Main bar — one unified draggable block ───────────────
         _BAR_BG = COLOR_TRANSPARENT if self._transparent_mode else COLOR_TERMINAL_BG
-        _BTN_BG = COLOR_CLICKABLE_BG if self._transparent_mode else COLOR_TERMINAL_BG
+        _BTN_BG = COLOR_TERMINAL_BG
         row = tk.Frame(self.root, bg=_BAR_BG)
         row.pack(fill=tk.BOTH, expand=True)
         self._bar_row = row
@@ -900,11 +899,10 @@ class WhisperTyper:
         """Set transparent or solid bar background and re-render icons."""
         self._transparent_mode = transparent
         row_bg = COLOR_TRANSPARENT if transparent else COLOR_TERMINAL_BG
-        btn_bg = COLOR_CLICKABLE_BG if transparent else COLOR_TERMINAL_BG
         for w in self._row_bg_widgets:
             w.configure(bg=row_bg)
         for w in self._btn_bg_widgets:
-            w.configure(bg=btn_bg)
+            w.configure(bg=COLOR_TERMINAL_BG)
         self._mic_btn._bg = bg
         self._vad_btn._bg = bg
         # Re-render icons with new background for proper compositing
