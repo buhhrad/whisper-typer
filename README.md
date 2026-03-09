@@ -14,7 +14,7 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 
 <img src="demo.gif" width="172" />
 
-<br><br><br>
+<br>
 
 [![Windows](https://img.shields.io/badge/Windows_10%2F11-0078D4?logo=windows&logoColor=white)](https://github.com/buhhrad/whisper-typer)
 [![Python](https://img.shields.io/badge/Python_3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
