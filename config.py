@@ -56,14 +56,19 @@ ROUTE_CLIPBOARD = "Clipboard Only"
 ROUTE_OPTIONS = [ROUTE_AUTO_TERMINAL, ROUTE_PASTE, ROUTE_CLIPBOARD]
 ROUTE_DEFAULT = ROUTE_AUTO_TERMINAL
 
-# Window class names for terminal auto-detection (tried in order)
-TERMINAL_WINDOW_CLASSES = [
-    "CASCADIA_HOSTING_WINDOW_CLASS",  # Windows Terminal
-    "ConsoleWindowClass",              # CMD / PowerShell classic
-]
+# Window class names for terminal auto-detection (platform-aware)
+def _get_terminal_classes():
+    from compat import backend
+    return backend.get_terminal_window_classes()
+
+def _get_terminal_hints():
+    from compat import backend
+    return backend.get_terminal_title_hints()
+
+TERMINAL_WINDOW_CLASSES = _get_terminal_classes()
 # Title substrings to prefer when multiple terminals exist (case-insensitive)
-TERMINAL_TITLE_HINTS = ["powershell", "cmd"]
-# Title substrings to SKIP — avoids sending to the wrong terminal
+TERMINAL_TITLE_HINTS = _get_terminal_hints()
+# Title substrings to SKIP — avoids sending to the wrong terminal (platform-neutral)
 TERMINAL_TITLE_EXCLUDE = ["whisper-typer"]
 
 # ── State machine ─────────────────────────────────────────────────────

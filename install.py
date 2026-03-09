@@ -45,7 +45,7 @@ def _print_banner():
 {_styled("  │", _DIM)}  {_styled("░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀", _DIM)}       {_styled("│", _DIM)}
 {_styled("  │", _DIM)}                                            {_styled("│", _DIM)}
 {_styled("  │", _DIM)}  {_styled("T Y P E R", _WHITE, _BOLD)}                              {_styled("│", _DIM)}
-{_styled("  │", _DIM)}  {_styled("Local voice typing for Windows", _GRAY)}           {_styled("│", _DIM)}
+{_styled("  │", _DIM)}  {_styled("Local voice typing — any platform", _GRAY)}        {_styled("│", _DIM)}
 {_styled("  ╰──────────────────────────────────────────╯", _DIM)}
 """
     print(banner)
@@ -148,6 +148,21 @@ def _check_disk_space() -> bool:
         return True
 
 
+def _check_platform_deps() -> None:
+    """Check for platform-specific optional dependencies."""
+    if sys.platform == "linux":
+        missing = []
+        for tool, purpose in [("xclip", "clipboard"), ("xdotool", "terminal finding")]:
+            if not shutil.which(tool):
+                missing.append(f"{tool} ({purpose})")
+        if missing:
+            _step_info(f"Optional: install {', '.join(missing)} for full functionality")
+        else:
+            _step_ok("Linux tools", "xclip, xdotool")
+    elif sys.platform == "darwin":
+        _step_ok("macOS tools", "pbcopy, osascript (built-in)")
+
+
 # ── Install ───────────────────────────────────────────────────────────
 
 def _install_package() -> bool:
@@ -247,6 +262,7 @@ def main():
     has_cuda, _ = _check_cuda()
     _check_disk_space()
     _step_ok("Platform", f"{platform.system()} {platform.release()}")
+    _check_platform_deps()
 
     # ── Install dependencies
     _section("Install")

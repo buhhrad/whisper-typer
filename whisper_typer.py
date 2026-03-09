@@ -13,7 +13,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import ctypes
 import os
 import queue
 import sys
@@ -62,13 +61,8 @@ from config import (
     STATE_TRANSCRIBING,
     STATE_TYPING,
 )
+from compat import backend as _platform
 from widgets import DropdownButton, MicIcon, VadToggle, LoadingBar, DurationBadge
-
-# ── Win32 constants ───────────────────────────────────────────────────
-GWL_EXSTYLE = -20
-WS_EX_NOACTIVATE = 0x08000000
-WS_EX_TOOLWINDOW = 0x00000080
-WS_EX_TOPMOST = 0x00000008
 
 
 def _get_input_devices() -> list[tuple[int, str]]:
@@ -133,7 +127,7 @@ class WhisperTyper:
         self._snap_bar_w: int = 0
         self._snap_bar_h: int = 0
         self._snap_tk_hwnd: int = 0
-        self._user32 = ctypes.windll.user32
+        self._platform = _platform
 
         # Lazy imports — only load heavy modules when needed
         self._recorder = None
@@ -155,7 +149,8 @@ class WhisperTyper:
         self.root.configure(bg=COLOR_TRANSPARENT)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", True)
-        self.root.attributes("-transparentcolor", COLOR_TRANSPARENT)
+        if self._platform.supports_transparency:
+            self.root.attributes("-transparentcolor", COLOR_TRANSPARENT)
         self.root.overrideredirect(True)  # no title bar
 
         # ── Main bar — one unified draggable block ───────────────
@@ -189,7 +184,7 @@ class WhisperTyper:
 
         # Status label (hidden — kept for compatibility with status update calls)
         self._status = tk.Label(
-            row, text="Loading model\u2026", font=("Segoe UI", 7),
+            row, text="Loading model\u2026", font=(_platform.get_ui_font(), 7),
             fg=COLOR_TEXT_DIM, bg=_BAR_BG, anchor="w",
         )
 
@@ -342,42 +337,22 @@ class WhisperTyper:
         self.root.after(0, self._on_close)
 
     def _apply_window_styles(self) -> None:
-        """Apply WS_EX_NOACTIVATE + WS_EX_TOOLWINDOW and register hwnd for focus tracking."""
-        try:
-            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
-            if not hwnd:
-                hwnd = self.root.winfo_id()
-            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            style |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST
-            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
-        except Exception:
-            pass
+        """Apply tool-window style (no taskbar, no activate, topmost) via platform backend."""
+        self._platform.apply_tool_window_style(self.root)
         self._apply_rounded_corners()
 
     def _apply_rounded_corners(self) -> None:
-        """Set window shape to a rounded rectangle via Win32 region.
+        """Set window shape to a rounded rectangle via platform backend.
 
         Only applies when snapped (transparent mode) — unsnapped windows
         use a solid background where clipping would cut off edge widgets.
         """
-        try:
-            hwnd = int(self.root.wm_frame(), 16)
-            if not self._transparent_mode:
-                # Clear any existing region — full rectangle, no clipping
-                ctypes.windll.user32.SetWindowRgn(hwnd, 0, True)
-                return
-            w = self.root.winfo_width()
-            h = self.root.winfo_height()
-            r = 10
-            rgn = ctypes.windll.gdi32.CreateRoundRectRgn(0, 0, w + 1, h + 1, r * 2, r * 2)
-            ctypes.windll.user32.SetWindowRgn(hwnd, rgn, True)
-        except Exception:
-            pass
+        self._platform.set_rounded_corners(self.root, radius=10, enable=self._transparent_mode)
 
     def _resize_window(self, skip_corners: bool = False) -> None:
         """Recalculate and apply window size after widget changes.
 
-        skip_corners: skip SetWindowRgn during animation frames (prevents hitbox issues).
+        skip_corners: skip rounded-corner update during animation frames (prevents hitbox issues).
         """
         self.root.update_idletasks()
         w = self.root.winfo_reqwidth()
@@ -408,16 +383,11 @@ class WhisperTyper:
         y = self.root.winfo_y() + dy
         # Use virtual screen bounds (spans all monitors)
         try:
-            SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN = 76, 77
-            SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN = 78, 79
-            vx = ctypes.windll.user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
-            vy = ctypes.windll.user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
-            vw = ctypes.windll.user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
-            vh = ctypes.windll.user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+            vx, vy, vw, vh = self._platform.get_virtual_screen_bounds()
             x = max(vx, min(x, vx + vw - self.root.winfo_width()))
             y = max(vy, min(y, vy + vh - self.root.winfo_height()))
         except Exception:
-            pass  # If GetSystemMetrics fails, allow unclamped drag
+            pass  # If get_virtual_screen_bounds fails, allow unclamped drag
         self.root.geometry(f"+{x}+{y}")
 
     # ── Device change ─────────────────────────────────────────────
@@ -472,7 +442,7 @@ class WhisperTyper:
         c = self._gear_btn
         c.delete("all")
         cx, cy = 13, 13
-        c.create_text(cx, cy, text="\u2699", font=("Segoe UI", 11), fill=color)
+        c.create_text(cx, cy, text="\u2699", font=(_platform.get_ui_font(), 11), fill=color)
 
     def _toggle_settings(self) -> None:
         if self._settings_popup and self._settings_popup.winfo_exists():
@@ -560,7 +530,7 @@ class WhisperTyper:
         """Open settings popup — translucent, rounded, wider."""
         _PANEL_BG = COLOR_TERMINAL_BG  # match the bar background
         _PANEL_ALPHA = 0.90
-        _FONT = "Cascadia Code"  # matches terminal font
+        _FONT = _platform.get_mono_font()  # matches terminal font
         _FONT_BODY = (_FONT, 8)
         _FONT_LABEL = (_FONT, 7, "bold")
         _FONT_SMALL = (_FONT, 6, "bold")
@@ -578,7 +548,8 @@ class WhisperTyper:
         self._settings_popup.attributes("-topmost", True)
         self._settings_popup.attributes("-alpha", 0)  # hidden until bg renders
         self._settings_popup.configure(bg=_CORNER_KEY)
-        self._settings_popup.attributes("-transparentcolor", _CORNER_KEY)
+        if self._platform.supports_transparency:
+            self._settings_popup.attributes("-transparentcolor", _CORNER_KEY)
 
         bg_canvas = tk.Canvas(self._settings_popup, bg=_CORNER_KEY, highlightthickness=0)
         bg_canvas.pack(fill=tk.BOTH, expand=True)
@@ -610,8 +581,13 @@ class WhisperTyper:
             out_row, text="OUT", font=_FONT_LABEL,
             fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
         ).pack(side=tk.LEFT)
+        # Filter "Auto Terminal" route if the platform can't find terminals
+        _routes = ROUTE_OPTIONS
+        if not self._platform.supports_terminal_finding:
+            from config import ROUTE_AUTO_TERMINAL
+            _routes = [r for r in ROUTE_OPTIONS if r != ROUTE_AUTO_TERMINAL]
         DropdownButton(
-            out_row, textvariable=self._route_var, values=ROUTE_OPTIONS,
+            out_row, textvariable=self._route_var, values=_routes,
             bg=COLOR_DROPDOWN_BG, fg=_FG,
             hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
             font=_FONT_MONO,
@@ -805,28 +781,30 @@ class WhisperTyper:
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
 
         # Snap to Terminal toggle (also controls transparency)
-        snap_on = bool(self._snap_hwnd)
-        snap_check = "\u2713" if snap_on else "\u2002"
-        snap_fg = COLOR_AMBER if snap_on else _FG_DIM
-        snap_row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
-        snap_row.pack(fill=tk.X, pady=2)
-        snap_box = tk.Label(
-            snap_row, text=f"[{snap_check}]", font=_FONT_MONO,
-            fg=snap_fg, bg=_PANEL_BG, padx=(4),
-        )
-        snap_box.pack(side=tk.LEFT)
-        snap_txt = tk.Label(
-            snap_row, text="Snap to Terminal", font=_FONT_BODY,
-            fg=snap_fg, bg=_PANEL_BG, anchor="w",
-        )
-        snap_txt.pack(side=tk.LEFT, padx=(2, 0))
-        for w in (snap_row, snap_box, snap_txt):
-            w.bind("<Enter>", lambda e, b=snap_box, t=snap_txt: (
-                b.configure(fg=COLOR_AMBER), t.configure(fg=COLOR_AMBER)))
-            w.bind("<Leave>", lambda e, b=snap_box, t=snap_txt, on=snap_on: (
-                b.configure(fg=COLOR_AMBER if on else _FG_DIM),
-                t.configure(fg=COLOR_AMBER if on else _FG_DIM)))
-            w.bind("<ButtonRelease-1>", lambda e: self._toggle_snap())
+        # Only shown if the platform supports window snapping and terminal finding
+        if self._platform.supports_window_snapping and self._platform.supports_terminal_finding:
+            snap_on = bool(self._snap_hwnd)
+            snap_check = "\u2713" if snap_on else "\u2002"
+            snap_fg = COLOR_AMBER if snap_on else _FG_DIM
+            snap_row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
+            snap_row.pack(fill=tk.X, pady=2)
+            snap_box = tk.Label(
+                snap_row, text=f"[{snap_check}]", font=_FONT_MONO,
+                fg=snap_fg, bg=_PANEL_BG, padx=(4),
+            )
+            snap_box.pack(side=tk.LEFT)
+            snap_txt = tk.Label(
+                snap_row, text="Snap to Terminal", font=_FONT_BODY,
+                fg=snap_fg, bg=_PANEL_BG, anchor="w",
+            )
+            snap_txt.pack(side=tk.LEFT, padx=(2, 0))
+            for w in (snap_row, snap_box, snap_txt):
+                w.bind("<Enter>", lambda e, b=snap_box, t=snap_txt: (
+                    b.configure(fg=COLOR_AMBER), t.configure(fg=COLOR_AMBER)))
+                w.bind("<Leave>", lambda e, b=snap_box, t=snap_txt, on=snap_on: (
+                    b.configure(fg=COLOR_AMBER if on else _FG_DIM),
+                    t.configure(fg=COLOR_AMBER if on else _FG_DIM)))
+                w.bind("<ButtonRelease-1>", lambda e: self._toggle_snap())
 
         # ── Restart button ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
@@ -853,7 +831,7 @@ class WhisperTyper:
             y = bar_bottom
         self._settings_popup.geometry(f"{popup_w}x{h}+{x}+{y}")
 
-        # Render rounded background via PIL — no SetWindowRgn, no corner clipping
+        # Render rounded background via PIL — no window region, no corner clipping
         def _render_bg():
             try:
                 if not (self._settings_popup and self._settings_popup.winfo_exists()):
@@ -898,43 +876,12 @@ class WhisperTyper:
     # ── Snap to terminal ─────────────────────────────────────────
 
     def _find_terminal_hwnd(self):
-        """Find a visible Windows Terminal window to snap to."""
-        from config import TERMINAL_WINDOW_CLASSES, TERMINAL_TITLE_EXCLUDE
-        user32 = ctypes.windll.user32
-
-        def _is_valid(hwnd):
-            if not user32.IsWindowVisible(hwnd):
-                return False
-            class_buf = ctypes.create_unicode_buffer(256)
-            user32.GetClassNameW(hwnd, class_buf, 256)
-            if class_buf.value not in TERMINAL_WINDOW_CLASSES:
-                return False
-            title_buf = ctypes.create_unicode_buffer(512)
-            user32.GetWindowTextW(hwnd, title_buf, 512)
-            title_lower = title_buf.value.lower()
-            for excl in TERMINAL_TITLE_EXCLUDE:
-                if excl.lower() in title_lower:
-                    return False
-            return True
-
-        # Try foreground window first
-        fg = user32.GetForegroundWindow()
-        if fg and _is_valid(fg):
-            return fg
-
-        # Enumerate all visible terminals
-        candidates = []
-        WNDENUMPROC = ctypes.WINFUNCTYPE(
-            ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p,
+        """Find a visible terminal window to snap to via platform backend."""
+        from config import TERMINAL_TITLE_HINTS, TERMINAL_TITLE_EXCLUDE
+        return self._platform.find_terminal_window(
+            title_hints=TERMINAL_TITLE_HINTS,
+            title_exclude=TERMINAL_TITLE_EXCLUDE,
         )
-
-        def enum_cb(hwnd, _):
-            if _is_valid(hwnd):
-                candidates.append(hwnd)
-            return True
-
-        user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
-        return candidates[0] if candidates else None
 
     def _toggle_snap(self) -> None:
         if self._snap_hwnd:
@@ -984,7 +931,7 @@ class WhisperTyper:
             ))
             return
         self._snap_hwnd = hwnd
-        self._snap_tk_hwnd = int(self.root.wm_frame(), 16)
+        self._snap_tk_hwnd = self._platform.get_tk_hwnd(self.root)
         # Enable transparency and hide grips when snapping
         if not self._transparent_mode:
             self._set_transparency(True)
@@ -1009,11 +956,7 @@ class WhisperTyper:
             self.root.after_cancel(self._snap_id)
             self._snap_id = None
         # Clear the window region first — prevents clipping during resize
-        try:
-            hwnd = int(self.root.wm_frame(), 16)
-            ctypes.windll.user32.SetWindowRgn(hwnd, 0, True)
-        except Exception:
-            pass
+        self._platform.set_rounded_corners(self.root, radius=10, enable=False)
         # Show grips when unsnapping — pack at left edge before all other widgets
         for g in self._grips:
             g.pack(side=tk.LEFT, fill=tk.Y, padx=2)
@@ -1030,48 +973,39 @@ class WhisperTyper:
         self.root.update_idletasks()
         self._resize_window()
 
-    # Reusable RECT (avoid recreating every call)
-    class _RECT(ctypes.Structure):
-        _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
-                     ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
-
-    # SetWindowPos flags for snap — no resize, no z-order change, no activate
-    _SWP_NOSIZE = 0x0001
-    _SWP_NOZORDER = 0x0004
-    _SWP_NOACTIVATE = 0x0010
-    _SWP_FLAGS = _SWP_NOSIZE | _SWP_NOZORDER | _SWP_NOACTIVATE
-
     def _snap_poll(self) -> None:
-        """Track the snapped window position via polling (~1ms)."""
+        """Track the snapped window position via polling."""
         try:
-            if not self._snap_hwnd or not self._user32.IsWindow(self._snap_hwnd):
+            if not self._snap_hwnd or not self._platform.is_window_valid(self._snap_hwnd):
                 self._snap_hwnd = None
                 return
 
-            if self._user32.IsIconic(self._snap_hwnd):
+            if self._platform.is_window_minimized(self._snap_hwnd):
                 self.root.withdraw()
                 self._snap_id = self.root.after(200, self._snap_poll)
                 return
 
             self.root.deiconify()
 
-            rect = self._RECT()
-            self._user32.GetWindowRect(self._snap_hwnd, ctypes.byref(rect))
+            rect = self._platform.get_window_rect(self._snap_hwnd)
+            if rect is None:
+                return
 
+            left, top, right, bottom = rect
             # Center horizontally on terminal, vertically in bottom status area
-            x = rect.left + (rect.right - rect.left - self._snap_bar_w) // 2
-            y = rect.bottom - self._snap_bar_h - 8
+            x = left + (right - left - self._snap_bar_w) // 2
+            y = bottom - self._snap_bar_h - 8
             if x != self._snap_last_x or y != self._snap_last_y:
                 self._snap_last_x = x
                 self._snap_last_y = y
-                # Direct Win32 move — bypasses tkinter string parsing
-                self._user32.SetWindowPos(
-                    self._snap_tk_hwnd, 0, x, y, 0, 0, self._SWP_FLAGS)
+                # Direct platform move — bypasses tkinter string parsing
+                self._platform.set_window_position(self._snap_tk_hwnd, x, y)
         except Exception:
             pass
 
         if self._snap_hwnd:
-            self._snap_id = self.root.after(1, self._snap_poll)
+            self._snap_id = self.root.after(
+                self._platform.snap_poll_interval_ms, self._snap_poll)
 
     # ── Initialization (after mainloop starts) ────────────────────
 
@@ -1131,11 +1065,11 @@ class WhisperTyper:
 
         # Don't auto-restore VAD — user must explicitly enable it each session
 
-        # Auto-snap to terminal if one is available
-        hwnd = self._find_terminal_hwnd()
+        # Auto-snap to terminal if one is available (only on supported platforms)
+        hwnd = self._find_terminal_hwnd() if self._platform.supports_window_snapping else None
         if hwnd:
             self._snap_hwnd = hwnd
-            self._snap_tk_hwnd = int(self.root.wm_frame(), 16)
+            self._snap_tk_hwnd = self._platform.get_tk_hwnd(self.root)
             # Hide grips when snapped and resize
             for g in self._grips:
                 g.pack_forget()
@@ -1322,7 +1256,7 @@ class WhisperTyper:
             if hasattr(self, '_draw_grip_dots'):
                 self._draw_grip_dots()
             # Resize window to fit new widgets — defer a second pass
-            # so geometry is fully settled before SetWindowRgn
+            # so geometry is fully settled before applying rounded corners
             self._resize_window()
             self.root.after(50, self._resize_window)
             if self._state == STATE_IDLE:

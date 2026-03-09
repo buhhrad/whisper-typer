@@ -1,51 +1,39 @@
 """Whisper Typer — text output routing.
 
-Simple approach:
-  - clip.exe for clipboard (battle-tested, handles unicode)
-  - pynput keyboard Controller for Ctrl+V and Enter
+Cross-platform approach:
+  - compat backend for clipboard, terminal discovery, and focus management
+  - pynput keyboard Controller for paste and Enter keystrokes
   - Auto Terminal mode: finds a terminal window and sends text there
 """
 
 from __future__ import annotations
 
-import ctypes
-import ctypes.wintypes
-import subprocess
 import sys
 import time
 
 from pynput.keyboard import Controller, Key
 
+from compat import backend as _platform
+
 _kb = Controller()
 
 
-# ── Clipboard via clip.exe ────────────────────────────────────────────
+# ── Clipboard ─────────────────────────────────────────────────────────
 
 def _set_clipboard(text: str) -> bool:
-    """Set clipboard text via clip.exe (UTF-16LE for full unicode)."""
-    try:
-        proc = subprocess.Popen(
-            ["clip"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        # BOM + UTF-16LE — clip.exe needs BOM to interpret encoding correctly
-        proc.communicate(b"\xff\xfe" + text.encode("utf-16-le"))
-        return proc.returncode == 0
-    except Exception:
-        return False
+    """Set clipboard text via the platform backend."""
+    return _platform.set_clipboard(text)
 
 
 # ── Keystroke helpers ─────────────────────────────────────────────────
 
-def _press_ctrl_v() -> None:
-    """Send Ctrl+V via pynput."""
-    _kb.press(Key.ctrl)
+def _press_paste() -> None:
+    """Send the platform paste shortcut (Ctrl+V on Win/Linux, Cmd+V on macOS)."""
+    mod = _platform.get_paste_modifier()
+    _kb.press(mod)
     _kb.press("v")
     _kb.release("v")
-    _kb.release(Key.ctrl)
+    _kb.release(mod)
 
 
 def _press_enter() -> None:
@@ -56,88 +44,43 @@ def _press_enter() -> None:
 
 # ── Terminal auto-find ────────────────────────────────────────────────
 
-# Win32 callback type for EnumWindows
-_WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
-_user32 = ctypes.windll.user32
+def _find_terminal_hwnd():
+    """Find a terminal window handle via the platform backend."""
+    from config import TERMINAL_TITLE_HINTS, TERMINAL_TITLE_EXCLUDE
 
-
-def _find_terminal_hwnd() -> int | None:
-    """Find a terminal window handle. Skips excluded titles, prefers hints."""
-    from config import TERMINAL_WINDOW_CLASSES, TERMINAL_TITLE_HINTS, TERMINAL_TITLE_EXCLUDE
-
-    candidates: list[tuple[int, str]] = []  # (hwnd, title)
-
-    def _enum_cb(hwnd: int, _lparam: int) -> bool:
-        if not _user32.IsWindowVisible(hwnd):
-            return True
-        # Get window class name
-        cls_buf = ctypes.create_unicode_buffer(256)
-        _user32.GetClassNameW(hwnd, cls_buf, 256)
-        cls_name = cls_buf.value
-        if cls_name not in TERMINAL_WINDOW_CLASSES:
-            return True
-        # Get window title
-        title_len = _user32.GetWindowTextLengthW(hwnd) + 1
-        title_buf = ctypes.create_unicode_buffer(title_len)
-        _user32.GetWindowTextW(hwnd, title_buf, title_len)
-        title = title_buf.value.lower()
-        # Skip excluded windows
-        if any(excl in title for excl in TERMINAL_TITLE_EXCLUDE):
-            return True
-        candidates.append((hwnd, title))
-        return True
-
-    _user32.EnumWindows(_WNDENUMPROC(_enum_cb), 0)
-
-    if not candidates:
-        return None
-
-    # Prefer windows whose title matches a hint
-    for hint in TERMINAL_TITLE_HINTS:
-        for hwnd, title in candidates:
-            if hint in title:
-                return hwnd
-
-    # Fall back to first terminal found
-    return candidates[0][0]
+    return _platform.find_terminal_window(
+        title_hints=TERMINAL_TITLE_HINTS,
+        title_exclude=TERMINAL_TITLE_EXCLUDE,
+    )
 
 
 def send_to_terminal(text: str) -> bool:
     """Find a terminal, paste text + Enter, restore focus back.
 
-    Uses the ALT-key trick to bypass Windows' foreground lock so
-    SetForegroundWindow actually works from a background process.
+    Focus management (including any OS-specific tricks) is handled
+    by the platform backend.
     """
     target = _find_terminal_hwnd()
     if not target:
         _set_clipboard(text)
         return False
 
-    prev_hwnd = _user32.GetForegroundWindow()
+    prev_hwnd = _platform.get_foreground_window()
 
     if not _set_clipboard(text):
         return False
 
-    # ALT-key trick: Windows blocks SetForegroundWindow from background
-    # processes unless the caller recently received input.
-    _user32.keybd_event(0x12, 0, 0, 0)    # ALT down
-    _user32.keybd_event(0x12, 0, 2, 0)    # ALT up
-    time.sleep(0.05)
-
-    _user32.SetForegroundWindow(target)
+    _platform.set_foreground_window(target)
     time.sleep(0.2)
 
-    _press_ctrl_v()
+    _press_paste()
     time.sleep(0.15)
     _press_enter()
 
     # Restore previous window
     time.sleep(0.15)
     if prev_hwnd and prev_hwnd != target:
-        _user32.keybd_event(0x12, 0, 0, 0)
-        _user32.keybd_event(0x12, 0, 2, 0)
-        time.sleep(0.05)
-        _user32.SetForegroundWindow(prev_hwnd)
+        _platform.set_foreground_window(prev_hwnd)
 
     return True
 
@@ -155,11 +98,11 @@ def type_text(text: str, route: str = "Auto Terminal (background)") -> bool:
     if route == "Clipboard Only":
         return _set_clipboard(text)
 
-    # Paste Only: clipboard → Ctrl+V
+    # Paste Only: clipboard → paste shortcut
     if not _set_clipboard(text):
         print("[typer] clipboard failed", file=sys.stderr)
         return False
 
     time.sleep(0.1)
-    _press_ctrl_v()
+    _press_paste()
     return True

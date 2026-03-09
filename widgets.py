@@ -83,13 +83,16 @@ class PillButton(tk.Canvas):
         bg: str = "#1a1a30",
         fg: str = "#e0e0e0",
         hover_bg: str | None = None,
-        font: tuple = ("Segoe UI", 9, "bold"),
+        font: tuple | None = None,
         padx: int = 16,
         pady: int = 6,
         radius: int = 12,
         command=None,
         **kwargs,
     ):
+        if font is None:
+            from compat import backend
+            font = (backend.get_ui_font(), 9, "bold")
         self._bg_color = bg
         self._fg_color = fg
         self._hover_bg = hover_bg or _lighten(bg, 18)
@@ -214,10 +217,13 @@ class DropdownButton(tk.Frame):
         hover_bg: str = "#222244",
         select_bg: str = "#2a2a50",
         select_fg: str = "#e0a820",
-        font: tuple = ("Segoe UI", 8),
+        font: tuple | None = None,
         on_change=None,
         **kwargs,
     ):
+        if font is None:
+            from compat import backend
+            font = (backend.get_ui_font(), 8)
         super().__init__(parent, bg=parent.cget("bg"), **kwargs)
 
         self._var = textvariable
@@ -1084,7 +1090,7 @@ class DurationBadge(tk.Canvas):
     WIDTH = 38
     HEIGHT = 18
     _PILL_R = 6
-    _FONT_NAME = "Cascadia Code"
+    _FONT_NAME = None  # resolved lazily from compat backend
     _FONT_SIZE = 9
     _ANIM_STEPS = 16  # ~256ms at 16ms/frame
     _ANIM_MS = 16
@@ -1096,6 +1102,9 @@ class DurationBadge(tk.Canvas):
             parent, width=0, height=self.HEIGHT,
             bg=bg, highlightthickness=0, **kwargs,
         )
+        if self._FONT_NAME is None:
+            from compat import backend
+            self.__class__._FONT_NAME = backend.get_mono_font()
         self._pill_color = pill_color
         self._text_color = text_color
         self._text = ""
@@ -1169,7 +1178,7 @@ class DurationBadge(tk.Canvas):
             self._render()
 
         if self._on_resize:
-            self._on_resize(skip_corners=True)  # skip SetWindowRgn during animation
+            self._on_resize(skip_corners=True)  # skip rounded-corner update during animation
 
         self._anim_step += 1
         if self._anim_step <= self._ANIM_STEPS:

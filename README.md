@@ -1,25 +1,39 @@
 # Whisper Typer
 
-A lightweight, always-on-top voice typing widget for Windows. Transcribes speech in real-time using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and routes text to your active terminal, clipboard, or any window.
+A lightweight, always-on-top voice typing widget. Transcribes speech in real-time using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and routes text to your active terminal, clipboard, or any window.
 
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
+![macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
+![Linux](https://img.shields.io/badge/platform-Linux-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-green)
 
 ## Features
 
 - **Push-to-Talk** — Hold `Ctrl+Shift+Space` to record, release to transcribe
 - **Always-on VAD** — Silero VAD detects speech automatically, hands-free
-- **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay, follows the window
-- **Multiple output routes** — Paste+Enter, Paste only, Clipboard, Type keys, or Auto Terminal (background)
+- **Snap to Terminal** — Attaches to your terminal as a transparent overlay, follows the window
+- **Multiple output routes** — Auto Terminal (background), Paste only, Clipboard only
 - **Queued transcription** — Captures overlapping speech segments so pauses don't cut you off
 - **System tray** — Minimizes to tray, stays out of the way
 - **Configurable** — Model size, device, hotkeys, mic selection, output routing
 
 ## Requirements
 
-- **Windows 10/11** (uses Win32 APIs for transparency and window management)
+- **Windows 10/11**, **macOS**, or **Linux** (X11 recommended; Wayland has limited support)
 - **Python 3.10+**
 - **CUDA GPU** (recommended) or CPU (slower transcription)
+
+### Platform notes
+
+| Feature | Windows | macOS | Linux (X11) | Linux (Wayland) |
+|---------|---------|-------|-------------|-----------------|
+| Clipboard | Full | Full | Full | Full |
+| Terminal auto-find | Full | AppleScript | xdotool | Not supported |
+| Window snapping | Full | Partial | Partial | Not supported |
+| Transparency | Per-pixel | Window alpha | Compositor | Compositor |
+| Rounded corners | Full | Native | Compositor | Compositor |
+
+On macOS, paste uses `Cmd+V` automatically. On Linux, install `xdotool` and `xclip` for full functionality.
 
 ## Quick Start
 
@@ -93,10 +107,11 @@ Configure via the settings popup (gear icon → KEYBINDS section):
 | `widgets.py` | Custom tkinter widgets — mic icon, VAD bars, duration badge, loading bar |
 | `audio.py` | Mic capture, VAD processing, recording controller |
 | `transcriber.py` | faster-whisper transcription wrapper |
-| `typer.py` | Text output routing (clipboard, paste, type, auto-terminal) |
+| `typer.py` | Text output routing (clipboard, paste, auto-terminal) |
 | `hotkeys.py` | Global hotkey listener (push-to-talk, VAD toggle) |
 | `config.py` | All constants and configuration |
 | `settings.py` | User settings persistence (JSON) |
+| `compat/` | Cross-platform abstraction layer (Windows, macOS, Linux backends) |
 
 ## How It Works
 
