@@ -343,12 +343,8 @@ class WhisperTyper:
         self._apply_rounded_corners()
 
     def _apply_rounded_corners(self) -> None:
-        """Set window shape to a rounded rectangle via platform backend.
-
-        Only applies when snapped (transparent mode) — unsnapped windows
-        use a solid background where clipping would cut off edge widgets.
-        """
-        self._platform.set_rounded_corners(self.root, radius=10, enable=self._transparent_mode)
+        """Set window shape to a rounded rectangle via platform backend."""
+        self._platform.set_rounded_corners(self.root, radius=10, enable=True)
 
     def _resize_window(self, skip_corners: bool = False) -> None:
         """Recalculate and apply window size after widget changes.
