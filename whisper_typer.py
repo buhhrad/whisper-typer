@@ -1044,9 +1044,9 @@ class WhisperTyper:
             ).start()
         else:
             if self._recorder and self._recorder.vad_active:
-                # Stop processing animation, return to static
+                # Set color first, then fade out (fade uses the new color)
+                self._vad_btn._on_color = COLOR_GREEN
                 self._vad_btn.set_processing(False)
-                self._vad_btn.set_color(COLOR_GREEN)
             self._vad_cooldown_until = time.time() + 0.3
             self.root.after(200, lambda: self._set_state(STATE_IDLE))
 

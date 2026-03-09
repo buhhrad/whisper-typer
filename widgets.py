@@ -556,11 +556,12 @@ class MicIcon(tk.Canvas):
         self._mic_base_img = None  # invalidate brightness cache
 
         if state == "idle":
-            self._draw_mic(color, solid=False)  # outline only
+            self._fade_to_idle_step = 0
+            self._fade_to_idle()
         elif state == "recording":
+            self._draw_mic(color, solid=True)
             self._pulse_frame = 0
-            self._pop_step = 0
-            self._pop_to_record()
+            self._pulse_mic_breathe()
         elif state == "transcribing":
             self._pulse_frame = 0
             self._pulse_dots()
@@ -598,6 +599,43 @@ class MicIcon(tk.Canvas):
         self._pulse_frame += 1
         self._pulse_id = self.after(40, self._pulse_record_dot)
 
+    _FADE_IDLE_STEPS = 6  # ~240ms fade
+
+    def _fade_to_idle(self):
+        """Smooth brightness fade-down to idle outline mic."""
+        if self._state != "idle":
+            return
+        t = self._fade_to_idle_step / self._FADE_IDLE_STEPS
+        t = 1 - (1 - t) ** 2  # ease-out
+        brightness = 1.0 - t * 0.6  # 1.0 → 0.4
+        self._draw_mic(self._color, _brightness=brightness, solid=False)
+        self._fade_to_idle_step += 1
+        if self._fade_to_idle_step <= self._FADE_IDLE_STEPS:
+            self._pulse_id = self.after(40, self._fade_to_idle)
+        else:
+            self._mic_base_img = None
+            self._draw_mic(self._color, solid=False)
+
+    def _pulse_mic_breathe(self):
+        """Pulse the solid mic icon — gentle brightness breathing."""
+        if self._state != "recording":
+            return
+        t = self._pulse_frame * 0.1
+        brightness = 0.6 + 0.4 * (0.5 + 0.5 * math.sin(t))  # 0.6 – 1.0
+        self._draw_mic(self._color, _brightness=brightness, solid=True)
+        self._pulse_frame += 1
+        self._pulse_id = self.after(40, self._pulse_mic_breathe)
+
+    def _pulse_mic_slow(self):
+        """Slow gentle pulse for transcribing state — mic stays solid, subtle breathing."""
+        if self._state not in ("transcribing", "typing"):
+            return
+        t = self._pulse_frame * 0.06  # slower than recording
+        brightness = 0.7 + 0.3 * (0.5 + 0.5 * math.sin(t))  # 0.7 – 1.0
+        self._draw_mic(self._color, _brightness=brightness, solid=True)
+        self._pulse_frame += 1
+        self._pulse_id = self.after(50, self._pulse_mic_slow)
+
     def _pulse_dots(self):
         """Animate the transcribing dots smoothly."""
         if self._state != "transcribing":
@@ -605,7 +643,6 @@ class MicIcon(tk.Canvas):
         self._draw_dots(self._color, self._pulse_frame)
         self._pulse_frame += 1
         self._pulse_id = self.after(50, self._pulse_dots)
-
 
     def _stop_pulse(self):
         if self._pulse_id:
@@ -678,6 +715,9 @@ class VadToggle(tk.Canvas):
         self._anim_frame = 0
         self._anim_id: str | None = None
         self._last_heights: list[int] | None = None
+        # Unified animation intensity: 0.0 = static rest, 0.3 = processing, 1.0 = recording
+        self._intensity = 0.0
+        self._target_intensity = 0.0
         self._hover = False
         self._photo = None  # PIL anti-aliased render reference
         self._bars_cache: dict[tuple, ImageTk.PhotoImage] = {}  # static frame cache
@@ -778,8 +818,8 @@ class VadToggle(tk.Canvas):
         self._hover = True
         self.configure(cursor="arrow")
         if not self._active:
-            self._draw_off()  # outline, brighter color
-        elif not self._recording:
+            self._draw_off()
+        elif not self._recording and not self._processing and self._anim_id is None:
             self._draw_bars(self._REST_HEIGHTS, _lighten(self._on_color, 30), solid=True)
 
     def _on_leave(self, e=None):
@@ -788,8 +828,8 @@ class VadToggle(tk.Canvas):
         self._hover = False
         self.configure(cursor="")
         if not self._active:
-            self._draw_off()  # outline, dim color
-        elif not self._recording:
+            self._draw_off()
+        elif not self._recording and not self._processing and self._anim_id is None:
             self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
 
     def _on_click(self, e=None):
@@ -806,6 +846,8 @@ class VadToggle(tk.Canvas):
         self._active = active
         self._recording = False
         self._processing = False
+        self._intensity = 0.0
+        self._target_intensity = 0.0
         self._stop_anim()
         if active:
             self._pop_step = 0
@@ -834,6 +876,7 @@ class VadToggle(tk.Canvas):
         if self._pop_step <= self._POP_STEPS:
             self._anim_id = self.after(self._ANIM_MS, self._pop_activate)
         else:
+            self._anim_id = None
             self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
 
     def _pop_deactivate(self):
@@ -856,137 +899,103 @@ class VadToggle(tk.Canvas):
         if self._pop_step <= self._POP_STEPS:
             self._anim_id = self.after(self._ANIM_MS, self._pop_deactivate)
         else:
+            self._anim_id = None
             self._draw_off()
 
-    _FADE_STEPS = 5  # ~80ms at 16ms/frame — snappy transitions
+    # Intensity lerp speed — how fast intensity transitions per frame
+    _LERP_SPEED = 0.12  # smooth ~10-frame blend
 
     def set_recording(self, recording: bool):
         """Start/stop the equalizer animation (when speech detected)."""
         self._recording = recording
         if recording:
             self._processing = False
-        self._stop_anim()  # always stop existing animation first
-        if recording and self._active:
-            self._anim_frame = 0
-            # Smooth fade-in from current heights to animated
-            self._fade_from = list(self._last_heights or self._REST_HEIGHTS)
-            self._fade_step = 0
-            self._fade_in()
-        elif not recording and self._processing and self._active:
-            # If processing mode is set, transition to gentle animation
-            self._anim_frame = 0
-            self._animate_processing()
+            self._target_intensity = 1.0
+        elif self._processing and self._active:
+            self._target_intensity = 0.3
+        elif self._active:
+            self._target_intensity = 0.0
         else:
-            # Fade out from current heights to resting
-            if self._active and self._last_heights:
-                self._fade_from = list(self._last_heights)
-                self._fade_step = 0
-                self._fade_out()
-            elif self._active:
-                self._draw_bars(self._REST_HEIGHTS, self._on_color)
-            else:
-                self._draw_off()
-
-    def _calc_anim_heights(self, t: int) -> list[int]:
-        """Calculate animation bar heights for frame t."""
-        heights = []
-        for i in range(self._NUM_BARS):
-            f = self._BAR_FREQS[i]
-            p = self._BAR_PHASES[i]
-            primary = math.sin(t * f + p)
-            h2 = math.sin(t * f * 1.7 + p * 0.5) * 0.3
-            h3 = math.sin(t * f * 2.9 + p * 1.3) * 0.15
-            jitter = random.uniform(-0.06, 0.06)
-            combined = (primary + h2 + h3 + jitter) / 1.45
-            h = int(self._BAR_BASES[i] + self._BAR_AMPS[i] * (0.5 + 0.5 * combined))
-            heights.append(h)
-        return heights
-
-    def _fade_in(self):
-        """Smoothly lerp bar heights from resting to animated targets."""
-        if not self._recording:
-            return
-        t = self._fade_step / self._FADE_STEPS
-        # Ease-in curve (accelerate into animation)
-        t = t * t
-        target = self._calc_anim_heights(self._anim_frame)
-        heights = []
-        for i in range(self._NUM_BARS):
-            h = int(self._fade_from[i] + (target[i] - self._fade_from[i]) * t)
-            heights.append(h)
-        self._last_heights = heights
-        self._draw_bars(heights, self._on_color, fast=True)
-        self._fade_step += 1
-        self._anim_frame += 1
-        if self._fade_step <= self._FADE_STEPS:
-            self._anim_id = self.after(self._ANIM_MS, self._fade_in)
-        else:
-            # Fade complete — continue with regular animation
-            self._animate()
-
-    def _fade_out(self):
-        """Smoothly lerp bar heights from current to resting, then idle breathe."""
-        if self._recording:
-            return  # new recording started, abort fade
-        t = self._fade_step / self._FADE_STEPS
-        # Ease-out curve
-        t = 1 - (1 - t) ** 2
-        heights = []
-        for i in range(self._NUM_BARS):
-            h = int(self._fade_from[i] + (self._REST_HEIGHTS[i] - self._fade_from[i]) * t)
-            heights.append(h)
-        self._draw_bars(heights, self._on_color, fast=True)
-        self._fade_step += 1
-        if self._fade_step <= self._FADE_STEPS:
-            self._anim_id = self.after(self._ANIM_MS, self._fade_out)
-        else:
-            self._last_heights = None
-
-    # Processing animation — gentle, slow movement while transcribing/typing
-    _PROC_ANIM_MS = 48  # ~20fps — slower than recording's 16ms/60fps
-    _PROC_AMPS = [4, 5, 3, 5, 4]  # much smaller amplitudes than recording
-    _PROC_FREQS = [0.04, 0.055, 0.03, 0.045, 0.06]  # slower oscillation
+            self._target_intensity = 0.0
+        self._stop_anim()
+        self._animate_unified()
 
     def set_processing(self, processing: bool):
         """Start/stop gentle processing animation (transcribing/typing)."""
         self._processing = processing
         self._recording = False
-        self._stop_anim()
         if processing and self._active:
-            # Transition from current heights (or rest) into gentle animation
-            self._anim_frame = 0
-            self._animate_processing()
+            self._target_intensity = 0.3
         elif self._active:
-            # Fade out to static resting
-            if self._last_heights:
-                self._fade_from = list(self._last_heights)
-                self._fade_step = 0
-                self._fade_out()
-            else:
-                self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
+            self._target_intensity = 0.0
+        else:
+            self._target_intensity = 0.0
+        self._stop_anim()
+        self._animate_unified()
 
-    def _animate_processing(self):
-        """Gentle sine-wave animation — subtle movement during processing."""
-        if not self._processing or self._recording:
+    def set_color(self, color: str):
+        """Change the active color — takes effect on next animation frame."""
+        self._on_color = color
+
+    def _ensure_anim_running(self):
+        """Start the unified animation loop if not already running."""
+        if self._anim_id is None:
+            self._animate_unified()
+
+    def _animate_unified(self):
+        """Single animation loop — smoothly blends between intensity levels.
+
+        intensity 0.0 = static rest, 0.3 = gentle processing, 1.0 = energetic recording.
+        Lerps toward _target_intensity each frame for seamless transitions.
+        """
+        # Lerp intensity toward target
+        diff = self._target_intensity - self._intensity
+        if abs(diff) < 0.01:
+            self._intensity = self._target_intensity
+        else:
+            self._intensity += diff * self._LERP_SPEED
+
+        # If fully at rest and target is rest, stop the loop
+        if self._intensity <= 0.005 and self._target_intensity <= 0.0:
+            self._intensity = 0.0
+            self._anim_id = None
+            self._last_heights = None
+            if self._active:
+                self._draw_bars(self._REST_HEIGHTS, self._on_color, solid=True)
+            else:
+                self._draw_off()
             return
-        heights = []
-        for i in range(self._NUM_BARS):
-            f = self._PROC_FREQS[i]
-            p = self._BAR_PHASES[i]
-            val = math.sin(self._anim_frame * f + p)
-            h = int(self._REST_HEIGHTS[i] + self._PROC_AMPS[i] * val)
-            heights.append(max(2, h))
+
+        # Calculate heights based on current intensity
+        heights = self._calc_blended_heights(self._anim_frame, self._intensity)
         self._last_heights = heights
         self._draw_bars(heights, self._on_color, fast=True, solid=True)
         self._anim_frame += 1
-        self._anim_id = self.after(self._PROC_ANIM_MS, self._animate_processing)
+        self._anim_id = self.after(self._ANIM_MS, self._animate_unified)
 
-    def set_color(self, color: str):
-        """Change the active color (e.g. blue for transcribing)."""
-        self._on_color = color
-        if self._active and not self._recording and not self._processing:
-            self._stop_anim()
-            self._draw_bars(self._REST_HEIGHTS, color, solid=True)
+    def _calc_blended_heights(self, t: int, intensity: float) -> list[int]:
+        """Calculate bar heights blended by intensity.
+
+        At intensity 0 = rest heights, at 1.0 = full recording animation.
+        Uses layered sine waves with heavy randomness for organic movement.
+        """
+        heights = []
+        for i in range(self._NUM_BARS):
+            f = self._BAR_FREQS[i]
+            p = self._BAR_PHASES[i]
+            # Multiple sine layers at different frequencies
+            primary = math.sin(t * f + p)
+            h2 = math.sin(t * f * 1.7 + p * 0.5) * 0.35
+            h3 = math.sin(t * f * 2.9 + p * 1.3) * 0.2
+            h4 = math.sin(t * f * 0.3 + p * 2.7) * 0.25  # slow drift
+            # Strong random jitter — makes each frame unique
+            jitter = random.uniform(-0.35, 0.35) * intensity
+            combined = (primary + h2 + h3 + h4 + jitter) / 1.8
+            # Amplitude scales with intensity
+            amp = self._BAR_AMPS[i] * intensity
+            h = int(self._REST_HEIGHTS[i] + amp * (0.5 + 0.5 * combined))
+            heights.append(max(2, h))
+        return heights
 
     def set_loading(self, loading: bool, dim_color: str | None = None):
         """Show static dim bars while loading, normal bars when done."""
@@ -1007,17 +1016,6 @@ class VadToggle(tk.Canvas):
     _BAR_PHASES = [0.0, 2.1, 0.7, 3.5, 1.3]
     _BAR_AMPS = [11, 14, 10, 13, 11]
     _BAR_BASES = [4, 3, 5, 4, 3]
-
-    def _animate(self):
-        """Sine-wave animation — organic movement with minimal jitter."""
-        if not self._recording:
-            return
-        heights = self._calc_anim_heights(self._anim_frame)
-        self._last_heights = heights
-        self._draw_bars(heights, self._on_color, fast=True)
-        self._anim_frame += 1
-        self._anim_id = self.after(self._ANIM_MS, self._animate)
-
 
 class LoadingBar(tk.Canvas):
     """Indeterminate loading bar — rounded pill shape, sliding highlight."""
