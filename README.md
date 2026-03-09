@@ -26,7 +26,7 @@ A lightweight, always-on-top voice typing widget for Windows. Transcribes speech
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/whisper-typer.git
+git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
 pip install -r requirements.txt
 ```
@@ -60,7 +60,7 @@ python whisper_typer.py --list-devices      # List available mic devices
 
 ### Whisper models
 
-Edit `config.py` to change the default model:
+Change the model in the settings popup (gear icon → WHISPER section), or via CLI:
 
 | Model | Size | Speed | Quality |
 |-------|------|-------|---------|
@@ -83,10 +83,11 @@ Edit `config.py` to change the default model:
 
 ### Hotkeys
 
-Edit `config.py` or configure via the settings JSON:
+Configure via the settings popup (gear icon → KEYBINDS section):
 
-- **Push-to-talk**: `Ctrl+Shift+Space` (default)
-- **VAD toggle**: Not bound by default (configurable in settings)
+- **Push-to-talk**: `Ctrl+Shift+Space` (default) — hold to record, release to transcribe
+- **VAD toggle**: Not bound by default
+- **Mute**: `Ctrl+Shift+M` (default) — toggles mute when VAD is active
 
 ## Files
 

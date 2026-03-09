@@ -541,11 +541,11 @@ class WhisperTyper:
             )
 
     def _on_whisper_setting_changed(self, key: str, value: str, restart_label: tk.Label) -> None:
-        """Save a whisper setting and show restart hint."""
+        """Save a whisper setting and show Apply button."""
         self._settings[key] = value
         import settings as user_settings
         user_settings.save(self._settings)
-        restart_label.configure(text="Restart to apply")
+        restart_label.configure(text="  Apply & Restart  ", bg="#1a1a2a", pady=3)
 
     def _open_settings(self) -> None:
         """Open settings popup — translucent, rounded, wider."""
@@ -682,12 +682,18 @@ class WhisperTyper:
                 "whisper_language", lang_var.get(), restart_label),
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        # "Restart to apply" hint — hidden until a whisper setting changes
+        # "Apply" button — hidden until a whisper setting changes
+        _APPLY_BG = "#1a1a2a"
+        _APPLY_HOVER = "#2a2a40"
         restart_label = tk.Label(
-            p, text="", font=_FONT_SMALL,
-            fg=COLOR_AMBER, bg=_PANEL_BG, anchor="w",
+            p, text="", font=(_FONT, 7, "bold"),
+            fg=COLOR_AMBER, bg=_PANEL_BG, anchor="center",
+            cursor="arrow",
         )
-        restart_label.pack(fill=tk.X, pady=(2, 0))
+        restart_label.pack(fill=tk.X, pady=(4, 0))
+        restart_label.bind("<ButtonRelease-1>", lambda e: self._restart())
+        restart_label.bind("<Enter>", lambda e: restart_label.configure(bg=_APPLY_HOVER) if restart_label.cget("text") else None)
+        restart_label.bind("<Leave>", lambda e: restart_label.configure(bg=_APPLY_BG) if restart_label.cget("text") else None)
 
         # ── Keybinds section ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
@@ -1404,6 +1410,25 @@ class WhisperTyper:
         self._event_queue.put(("typing_done",))
 
     # ── Main loop ─────────────────────────────────────────────────
+
+    def _restart(self) -> None:
+        """Restart the application to apply new settings."""
+        # Clean up
+        if self._recorder:
+            try:
+                self._recorder.close_stream()
+            except Exception:
+                pass
+        if self._hotkey_listener:
+            self._hotkey_listener.stop()
+        if hasattr(self, '_tray_icon') and self._tray_icon:
+            try:
+                self._tray_icon.stop()
+            except Exception:
+                pass
+        self.root.destroy()
+        # Re-exec the process
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def run(self) -> None:
         """Start the application."""

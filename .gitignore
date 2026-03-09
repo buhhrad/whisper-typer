@@ -26,5 +26,9 @@ Thumbs.db
 trends.py
 trends_results/
 
-# Cairn-specific launcher
+# Personal launchers
 claude-voice.bat
+WhisperTyper.vbs
+
+# Test cache
+.pytest_cache/
