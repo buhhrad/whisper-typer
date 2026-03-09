@@ -75,11 +75,9 @@ Change the model in the settings popup (gear icon → WHISPER section), or via C
 
 | Route | Behavior |
 |-------|----------|
-| Paste + Enter | Clipboard → Ctrl+V → Enter (ideal for terminals) |
-| Paste Only | Clipboard → Ctrl+V |
+| Auto Terminal | Finds a terminal in the background, pastes + Enter, restores focus (default) |
+| Paste Only | Clipboard → Ctrl+V into the focused window |
 | Clipboard Only | Copies to clipboard, no paste |
-| Type Keys | Types character by character (slow, universal) |
-| Auto Terminal | Finds a terminal window and sends text there in the background |
 
 ### Hotkeys
 

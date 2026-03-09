@@ -316,14 +316,15 @@ class WhisperTyper:
 
     @staticmethod
     def _make_tray_image():
-        """Create a mic tray icon — amber circle with mic silhouette."""
+        """Create a mic tray icon — dark circle with gray mic outline."""
         img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        draw.ellipse([4, 4, 60, 60], fill="#d4a030")
-        draw.rounded_rectangle([24, 14, 40, 38], radius=6, fill="#12121f")
-        draw.arc([20, 28, 44, 50], start=180, end=0, fill="#12121f", width=3)
-        draw.line([32, 50, 32, 56], fill="#12121f", width=3)
-        draw.line([24, 56, 40, 56], fill="#12121f", width=3)
+        draw.ellipse([4, 4, 60, 60], fill="#1a1a2a")
+        draw.ellipse([4, 4, 60, 60], outline="#3a3a50", width=2)
+        draw.rounded_rectangle([24, 14, 40, 38], radius=6, outline="#9090a8", width=2)
+        draw.arc([20, 28, 44, 50], start=180, end=0, fill="#9090a8", width=2)
+        draw.line([32, 50, 32, 56], fill="#9090a8", width=2)
+        draw.line([24, 56, 40, 56], fill="#9090a8", width=2)
         return img
 
     def _tray_show(self, icon=None, item=None) -> None:
@@ -354,9 +355,17 @@ class WhisperTyper:
         self._apply_rounded_corners()
 
     def _apply_rounded_corners(self) -> None:
-        """Set window shape to a rounded rectangle via Win32 region."""
+        """Set window shape to a rounded rectangle via Win32 region.
+
+        Only applies when snapped (transparent mode) — unsnapped windows
+        use a solid background where clipping would cut off edge widgets.
+        """
         try:
             hwnd = int(self.root.wm_frame(), 16)
+            if not self._transparent_mode:
+                # Clear any existing region — full rectangle, no clipping
+                ctypes.windll.user32.SetWindowRgn(hwnd, 0, True)
+                return
             w = self.root.winfo_width()
             h = self.root.winfo_height()
             r = 10
@@ -619,11 +628,14 @@ class WhisperTyper:
             "tiny", "base", "small", "medium",
             "large-v3", "large-v3-turbo",
         ]
-        _DEVICE_OPTIONS = ["cuda", "cpu"]
+        _DEVICE_OPTIONS = ["cuda (fast)", "cpu (slow)"]
         _LANG_OPTIONS = [
             "auto", "en", "es", "fr", "de", "pt", "zh",
             "ja", "ko", "it", "nl", "ru", "pl", "ar", "hi",
         ]
+
+        _DEVICE_LABELS = {"cuda": "cuda (fast)", "cpu": "cpu (slow)"}
+        _DEVICE_VALUES = {"cuda (fast)": "cuda", "cpu (slow)": "cpu"}
 
         import config as _cfg
         cur_model = self._settings.get("whisper_model") or _cfg.WHISPER_MODEL
@@ -631,7 +643,7 @@ class WhisperTyper:
         cur_lang = self._settings.get("whisper_language") or _cfg.WHISPER_LANGUAGE or "auto"
 
         model_var = tk.StringVar(value=cur_model)
-        device_var = tk.StringVar(value=cur_device)
+        device_var = tk.StringVar(value=_DEVICE_LABELS.get(cur_device, cur_device))
         lang_var = tk.StringVar(value=cur_lang)
 
         # MODEL row
@@ -663,7 +675,7 @@ class WhisperTyper:
             hover_bg="#222244", select_bg="#2a2a50", select_fg=COLOR_AMBER,
             font=_FONT_MONO,
             on_change=lambda: self._on_whisper_setting_changed(
-                "whisper_device", device_var.get(), restart_label),
+                "whisper_device", _DEVICE_VALUES.get(device_var.get(), device_var.get()), restart_label),
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         # LANG row
@@ -815,6 +827,17 @@ class WhisperTyper:
                 b.configure(fg=COLOR_AMBER if on else _FG_DIM),
                 t.configure(fg=COLOR_AMBER if on else _FG_DIM)))
             w.bind("<ButtonRelease-1>", lambda e: self._toggle_snap())
+
+        # ── Restart button ──
+        tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
+        restart_btn = tk.Label(
+            p, text="Restart", font=_FONT_BODY,
+            fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", anchor="center",
+        )
+        restart_btn.pack(fill=tk.X, pady=2)
+        restart_btn.bind("<Enter>", lambda e: restart_btn.configure(fg=COLOR_AMBER))
+        restart_btn.bind("<Leave>", lambda e: restart_btn.configure(fg=_FG_DIM))
+        restart_btn.bind("<ButtonRelease-1>", lambda e: self._restart())
 
         # Position above or below — dynamically choose based on screen space
         self._settings_popup.update_idletasks()
@@ -985,6 +1008,12 @@ class WhisperTyper:
         if self._snap_id:
             self.root.after_cancel(self._snap_id)
             self._snap_id = None
+        # Clear the window region first — prevents clipping during resize
+        try:
+            hwnd = int(self.root.wm_frame(), 16)
+            ctypes.windll.user32.SetWindowRgn(hwnd, 0, True)
+        except Exception:
+            pass
         # Show grips when unsnapping — pack at left edge before all other widgets
         for g in self._grips:
             g.pack(side=tk.LEFT, fill=tk.Y, padx=2)
@@ -997,7 +1026,8 @@ class WhisperTyper:
         else:
             if hasattr(self, '_draw_grip_dots'):
                 self._draw_grip_dots()
-        # Resize window to accommodate restored grips
+        # Resize window — geometry must settle before applying rounded corners
+        self.root.update_idletasks()
         self._resize_window()
 
     # Reusable RECT (avoid recreating every call)

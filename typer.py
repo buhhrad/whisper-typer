@@ -3,7 +3,6 @@
 Simple approach:
   - clip.exe for clipboard (battle-tested, handles unicode)
   - pynput keyboard Controller for Ctrl+V and Enter
-  - No ctypes SendInput complexity
   - Auto Terminal mode: finds a terminal window and sends text there
 """
 
@@ -55,13 +54,6 @@ def _press_enter() -> None:
     _kb.release(Key.enter)
 
 
-def _type_chars(text: str) -> None:
-    """Type text character by character via pynput."""
-    for char in text:
-        _kb.type(char)
-        time.sleep(0.008)
-
-
 # ── Terminal auto-find ────────────────────────────────────────────────
 
 # Win32 callback type for EnumWindows
@@ -89,7 +81,7 @@ def _find_terminal_hwnd() -> int | None:
         title_buf = ctypes.create_unicode_buffer(title_len)
         _user32.GetWindowTextW(hwnd, title_buf, title_len)
         title = title_buf.value.lower()
-        # Skip excluded windows (e.g. this Claude Code session)
+        # Skip excluded windows
         if any(excl in title for excl in TERMINAL_TITLE_EXCLUDE):
             return True
         candidates.append((hwnd, title))
@@ -115,7 +107,6 @@ def send_to_terminal(text: str) -> bool:
 
     Uses the ALT-key trick to bypass Windows' foreground lock so
     SetForegroundWindow actually works from a background process.
-    Quick flash to terminal and back — works while gaming.
     """
     target = _find_terminal_hwnd()
     if not target:
@@ -124,21 +115,18 @@ def send_to_terminal(text: str) -> bool:
 
     prev_hwnd = _user32.GetForegroundWindow()
 
-    # Set clipboard first while we still have time
     if not _set_clipboard(text):
         return False
 
     # ALT-key trick: Windows blocks SetForegroundWindow from background
-    # processes unless the caller recently received input. A synthetic
-    # ALT press/release satisfies this check.
+    # processes unless the caller recently received input.
     _user32.keybd_event(0x12, 0, 0, 0)    # ALT down
-    _user32.keybd_event(0x12, 0, 2, 0)    # ALT up (KEYEVENTF_KEYUP=2)
+    _user32.keybd_event(0x12, 0, 2, 0)    # ALT up
     time.sleep(0.05)
 
     _user32.SetForegroundWindow(target)
     time.sleep(0.2)
 
-    # Paste + Enter
     _press_ctrl_v()
     time.sleep(0.15)
     _press_enter()
@@ -156,7 +144,7 @@ def send_to_terminal(text: str) -> bool:
 
 # ── Public API ────────────────────────────────────────────────────────
 
-def type_text(text: str, route: str = "Paste + Enter (terminal)") -> bool:
+def type_text(text: str, route: str = "Auto Terminal (background)") -> bool:
     """Output text using the selected routing mode."""
     if not text:
         return False
@@ -167,20 +155,11 @@ def type_text(text: str, route: str = "Paste + Enter (terminal)") -> bool:
     if route == "Clipboard Only":
         return _set_clipboard(text)
 
-    if route == "Type Keys (slow, universal)":
-        _type_chars(text)
-        return True
-
-    # Paste modes: clipboard → Ctrl+V → optional Enter
+    # Paste Only: clipboard → Ctrl+V
     if not _set_clipboard(text):
         print("[typer] clipboard failed", file=sys.stderr)
         return False
 
     time.sleep(0.1)
     _press_ctrl_v()
-
-    if "Enter" in route:
-        time.sleep(0.15)
-        _press_enter()
-
     return True

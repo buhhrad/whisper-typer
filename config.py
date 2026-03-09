@@ -49,14 +49,12 @@ COLOR_DROPDOWN_BG = "#0e0e1a"
 COLOR_DROPDOWN_FG = "#b0b0c8"
 
 # ── Output routing ────────────────────────────────────────────────────
-ROUTE_PASTE_ENTER = "Paste + Enter (terminal)"
+ROUTE_AUTO_TERMINAL = "Auto Terminal (background)"
 ROUTE_PASTE = "Paste Only (Ctrl+V)"
 ROUTE_CLIPBOARD = "Clipboard Only"
-ROUTE_TYPE_KEYS = "Type Keys (slow, universal)"
-ROUTE_AUTO_TERMINAL = "Auto Terminal (background)"
 
-ROUTE_OPTIONS = [ROUTE_PASTE_ENTER, ROUTE_PASTE, ROUTE_CLIPBOARD, ROUTE_TYPE_KEYS, ROUTE_AUTO_TERMINAL]
-ROUTE_DEFAULT = ROUTE_PASTE_ENTER
+ROUTE_OPTIONS = [ROUTE_AUTO_TERMINAL, ROUTE_PASTE, ROUTE_CLIPBOARD]
+ROUTE_DEFAULT = ROUTE_AUTO_TERMINAL
 
 # Window class names for terminal auto-detection (tried in order)
 TERMINAL_WINDOW_CLASSES = [
