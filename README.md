@@ -28,18 +28,16 @@ A lightweight, always-on-top voice typing widget for Windows. Transcribes speech
 ```bash
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
-pip install -r requirements.txt
+pip install .
 ```
-
-Or double-click `setup.bat` to install dependencies automatically.
 
 ### 2. Run
 
 ```bash
-python whisper_typer.py
+whisper-typer
 ```
 
-Or double-click `WhisperTyper.bat` for a windowless launch.
+Or run directly with `python whisper_typer.py`.
 
 ### 3. Use
 
