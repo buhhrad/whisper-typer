@@ -358,9 +358,9 @@ class WhisperTyper:
         self.root.geometry(f"{w}x{h}+{x}+{y}")
         if not skip_corners:
             self._apply_rounded_corners()
-        elif self._transparent_mode:
-            # Clear stale region during animation to prevent it from clipping
-            # widgets (like the close button) that move as the window grows.
+        else:
+            # Clear stale region during animation — prevents asymmetric corners
+            # when the window is mid-resize and the old region doesn't match.
             self._platform.set_rounded_corners(self.root, radius=10, enable=False)
         if self._snap_hwnd:
             self._snap_bar_w = w
@@ -1095,7 +1095,7 @@ class WhisperTyper:
                 self._status.configure(text="Listening (VAD)\u2026", fg=COLOR_TEXT)
             else:
                 self._status.configure(text="Ready", fg=COLOR_TEXT)
-            self._cancel_elapsed_timer()
+            self._cancel_elapsed_timer(hide_badge=True)
 
         elif state == STATE_RECORDING:
             self._mic_btn.set_state("recording", COLOR_RED)
@@ -1122,11 +1122,12 @@ class WhisperTyper:
         self._duration_badge.set_time(f"{mins}:{secs:02d}")
         self._elapsed_timer_id = self.root.after(200, self._update_elapsed)
 
-    def _cancel_elapsed_timer(self) -> None:
+    def _cancel_elapsed_timer(self, hide_badge: bool = False) -> None:
         if self._elapsed_timer_id:
             self.root.after_cancel(self._elapsed_timer_id)
             self._elapsed_timer_id = None
-        self._duration_badge.hide()  # animated collapse
+        if hide_badge:
+            self._duration_badge.hide()  # animated collapse
 
     def _process_next_or_idle(self):
         """Process next queued audio segment, or return to idle."""
