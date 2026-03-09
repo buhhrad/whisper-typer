@@ -903,18 +903,20 @@ class WhisperTyper:
             w.configure(bg=row_bg)
         for w in self._btn_bg_widgets:
             w.configure(bg=COLOR_TERMINAL_BG)
-        self._mic_btn._bg = bg
-        self._vad_btn._bg = bg
+        self._mic_btn._bg = COLOR_TERMINAL_BG
+        self._vad_btn._bg = COLOR_TERMINAL_BG
+        # Clear VAD render cache — bg changed so cached frames are stale
+        self._vad_btn._bars_cache.clear()
         # Re-render icons with new background for proper compositing
         if hasattr(self._mic_btn, '_state'):
             self._mic_btn.set_state(self._mic_btn._state, self._mic_btn._color)
         self._draw_close_icon(self._close_color)
         self._draw_gear_icon(COLOR_TEXT_DIM)
         if hasattr(self._vad_btn, '_active'):
-            if self._vad_btn._active and not self._vad_btn._recording and not self._vad_btn._processing:
+            if self._vad_btn._active:
                 self._vad_btn._draw_bars(self._vad_btn._REST_HEIGHTS, self._vad_btn._on_color, solid=True)
-            elif not self._vad_btn._active:
-                self._vad_btn._draw_off()  # outline
+            else:
+                self._vad_btn._draw_off()
         # Re-render duration badge with new bg
         if hasattr(self, '_duration_badge') and self._duration_badge._visible:
             self._duration_badge._render()
@@ -976,9 +978,10 @@ class WhisperTyper:
         else:
             if hasattr(self, '_draw_grip_dots'):
                 self._draw_grip_dots()
-        # Resize window — geometry must settle before applying rounded corners
+        # Resize window — defer a second pass so geometry fully settles
         self.root.update_idletasks()
         self._resize_window()
+        self.root.after(50, self._resize_window)
 
     def _snap_poll(self) -> None:
         """Track the snapped window position via polling."""
