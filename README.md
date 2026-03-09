@@ -17,6 +17,7 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 [![Windows](https://img.shields.io/badge/Windows_10%2F11-0078D4?logo=windows&logoColor=white)](https://github.com/buhhrad/whisper-typer)
 [![Python](https://img.shields.io/badge/Python_3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/buhhrad/whisper-typer?style=flat)](https://github.com/buhhrad/whisper-typer/stargazers)
 [![faster-whisper](https://img.shields.io/badge/powered_by-faster--whisper-orange)](https://github.com/SYSTRAN/faster-whisper)
 [![VirusTotal](https://img.shields.io/badge/VirusTotal-0%2F63_clean-brightgreen?logo=virustotal)](https://www.virustotal.com/gui/file/134f259ba2b6411824fd07ad637f7e2956b275e0d365f592273ee762da926ee0/detection)
 
@@ -24,20 +25,34 @@ Talk. Transcribe. Type. No cloud. No latency. No subscription.
 
 ---
 
-## What is this?
+## Why Whisper Typer?
 
-A tiny, always-on-top floating widget that transcribes your speech in real-time using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and routes the text wherever you need it — your terminal, clipboard, or any focused window.
+Voice typing apps like [Wispr Flow](https://wisprflow.ai/) and [Superwhisper](https://superwhisper.com/) charge $8-12/month for something your computer can do locally for free. Whisper Typer is a lightweight, open-source alternative that runs entirely on your machine — no accounts, no cloud, no recurring fees.
 
-It snaps to your terminal as a transparent overlay and stays out of the way until you need it.
+**What makes it different:**
+- **Terminal-native** — Snaps to Windows Terminal as a transparent overlay. No other voice typing tool does this.
+- **Zero bloat** — Single Python file, no Electron, no web stack. Starts in seconds.
+- **Queued transcription** — Keeps recording while transcribing. Pauses in your speech don't lose words.
+- **Truly offline** — Your audio never leaves your machine. Not even once.
 
 ## Features
 
+### Dictation
 - **Push-to-Talk** — Hold `Ctrl+Shift+Space` to record, release to transcribe
-- **Always-on VAD** — Silero VAD detects speech automatically, completely hands-free
-- **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay, follows the window
+- **Always-on VAD** — [Silero VAD](https://github.com/snakers4/silero-vad) detects speech automatically, completely hands-free
+- **Mute Toggle** — `Ctrl+Shift+M` to pause VAD without turning it off
+- **Queued Transcription** — Overlapping speech segments are queued and processed sequentially — no speech is lost
+
+### Output Routing
 - **Auto Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus
-- **Queued Transcription** — Overlapping speech segments are captured so pauses don't cut you off
+- **Paste Only** — Copies to clipboard, sends `Ctrl+V` to the focused window
+- **Clipboard Only** — Copies to clipboard, nothing else
+
+### Interface
+- **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay, follows the window as you move or resize it
+- **Always-on-Top** — Stays visible while you work in other apps
 - **System Tray** — Minimizes to tray, stays out of the way
+- **Duration Badge** — Shows recording time with a smooth animated pill
 - **Fully Configurable** — Model, device, hotkeys, mic, output routing — all from the settings popup
 
 ## Quick Start
@@ -96,13 +111,20 @@ Change the model in settings (gear icon → Whisper section) or via `--model`.
 
 Models download automatically on first use from HuggingFace, or pre-download via `python install.py`.
 
-## Output Routes
+## How It Compares
 
-| Route | What it does |
-|-------|-------------|
-| **Auto Terminal** | Finds a background terminal, pastes + Enter, restores your focus *(default)* |
-| **Paste Only** | Copies to clipboard → sends Ctrl+V to the focused window |
-| **Clipboard Only** | Copies to clipboard, nothing else |
+| | Whisper Typer | Wispr Flow | Superwhisper | OpenWhispr |
+|---|:---:|:---:|:---:|:---:|
+| **Price** | Free | $12/mo | $8.49/mo | Free / $8/mo |
+| **Fully offline** | Yes | No | Yes | Yes |
+| **Open source** | Yes | No | No | Yes |
+| **Terminal integration** | Yes | No | No | No |
+| **VAD (hands-free)** | Yes | Yes | Yes | Yes |
+| **Push-to-talk** | Yes | Yes | Yes | Yes |
+| **Windows** | Yes | Yes | Yes | Yes |
+| **macOS** | Planned | Yes | Yes | Yes |
+| **Linux** | Planned | No | No | Yes |
+| **AI text cleanup** | No | Yes | Yes | Yes |
 
 ## Requirements
 
@@ -140,6 +162,43 @@ Audio captured during transcription/typing is queued and processed sequentially 
 | `compat/` | Platform abstraction layer |
 
 </details>
+
+## Privacy
+
+Whisper Typer processes everything locally on your machine. No audio is sent to any server, no account is required, and no telemetry is collected. Your voice data stays on your computer.
+
+## FAQ
+
+<details>
+<summary><b>Do I need a GPU?</b></summary>
+No. CPU works fine, especially with smaller models like <code>tiny</code> or <code>base</code>. A CUDA-capable NVIDIA GPU makes transcription significantly faster, especially with <code>large-v3-turbo</code>.
+</details>
+
+<details>
+<summary><b>Does it work with any microphone?</b></summary>
+Yes. Any microphone your system recognizes will work. Select your preferred mic in the settings popup.
+</details>
+
+<details>
+<summary><b>Can I use it without a terminal?</b></summary>
+Yes. The terminal snap feature is optional. You can use it as a floating widget anywhere on your screen and route output to clipboard or paste.
+</details>
+
+<details>
+<summary><b>What languages are supported?</b></summary>
+Whisper supports 99+ languages. Accuracy depends on the model size — larger models handle more languages better.
+</details>
+
+<details>
+<summary><b>How is this different from Windows Speech Recognition?</b></summary>
+Whisper is dramatically more accurate, supports more languages, and works offline with no training. Windows Speech Recognition requires online connectivity for its best models and struggles with accents and technical vocabulary.
+</details>
+
+## Contributing
+
+Contributions are welcome. Fork the repo, make your changes, and open a pull request.
+
+If you find a bug or have a feature request, [open an issue](https://github.com/buhhrad/whisper-typer/issues).
 
 ## Acknowledgments
 
