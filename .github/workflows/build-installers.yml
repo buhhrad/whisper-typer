@@ -25,7 +25,7 @@ jobs:
             artifact: WhisperTyper-macOS.dmg
             pyinstaller_args: "--windowed"
           - os: ubuntu-latest
-            artifact: WhisperTyper-Linux.tar.gz
+            artifact: WhisperTyper-Linux.tar.xz
             pyinstaller_args: ""
 
     runs-on: ${{ matrix.os }}
@@ -109,13 +109,45 @@ jobs:
           ARGS="$ARGS --collect-all ctranslate2"
           ARGS="$ARGS --collect-all torch"
 
-          # Exclude unnecessary modules
-          for exc in matplotlib scipy pandas IPython notebook tensorboard sympy jinja2 trends; do
+          # Exclude unnecessary modules to reduce size
+          for exc in matplotlib scipy pandas IPython notebook tensorboard sympy jinja2 trends \
+                     torch.distributed torch._inductor torch.testing torch.utils.tensorboard \
+                     triton caffe2; do
             ARGS="$ARGS --exclude-module $exc"
           done
 
           echo "Running: pyinstaller $ARGS whisper_typer.py"
           pyinstaller $ARGS whisper_typer.py
+
+      - name: Strip unnecessary files from bundle
+        shell: bash
+        run: |
+          # Find the internal directory (PyInstaller puts deps here)
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            INTERNAL="dist/WhisperTyper/_internal"
+            [ ! -d "$INTERNAL" ] && INTERNAL="dist/WhisperTyper.app/Contents/Frameworks"
+          else
+            INTERNAL="dist/WhisperTyper/_internal"
+          fi
+
+          if [ -d "$INTERNAL" ]; then
+            echo "Bundle size before cleanup: $(du -sh "$INTERNAL" | cut -f1)"
+
+            # Remove torch distributed/training files (not needed for inference)
+            rm -rf "$INTERNAL/torch/distributed" 2>/dev/null || true
+            rm -rf "$INTERNAL/torch/_inductor" 2>/dev/null || true
+            rm -rf "$INTERNAL/torch/testing" 2>/dev/null || true
+            rm -rf "$INTERNAL/torch/utils/tensorboard" 2>/dev/null || true
+            rm -rf "$INTERNAL/caffe2" 2>/dev/null || true
+            rm -rf "$INTERNAL/triton" 2>/dev/null || true
+
+            # Remove .pyi type stubs and test files
+            find "$INTERNAL" -name "*.pyi" -delete 2>/dev/null || true
+            find "$INTERNAL" -name "test_*" -path "*/torch/*" -delete 2>/dev/null || true
+            find "$INTERNAL" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+
+            echo "Bundle size after cleanup: $(du -sh "$INTERNAL" | cut -f1)"
+          fi
 
       # ── Package: Windows (Inno Setup) ───────────────────────────
       - name: Install Inno Setup
@@ -205,9 +237,9 @@ jobs:
           Categories=Utility;Audio;
           DESKTOP
 
-          # Archive
+          # Archive with xz for better compression
           cd dist
-          tar -czf ../WhisperTyper-Linux.tar.gz WhisperTyper/
+          tar -cJf ../WhisperTyper-Linux.tar.xz WhisperTyper/
 
       # ── Upload to release ───────────────────────────────────────
       - name: Determine release tag
