@@ -31,7 +31,7 @@ A small floating widget that transcribes your speech locally using [faster-whisp
 
 - **Works everywhere** — Voice-type into any focused window on your computer
 - **Send to Terminal** — Finds a terminal in the background, pastes your text + Enter, and restores your focus. Talk to CLI tools without switching windows.
-- **Snap to Terminal** — Attaches to Windows Terminal as a transparent overlay and follows the window
+- **Snap to Terminal** — Attaches to your terminal as a transparent overlay and follows the window (Windows)
 - **Lightweight** — Pure Python, no Electron. Starts in seconds.
 - **Queued transcription** — Keeps recording while transcribing so pauses in your speech don't lose words
 - **Fully offline** — No accounts, no cloud, no internet required
@@ -124,7 +124,7 @@ pip3 install .
 whisper-typer
 ```
 
-**Requirements:** Python 3.10+, CUDA GPU recommended, PulseAudio or PipeWire for microphone access
+**Requirements:** Python 3.10+, CUDA GPU recommended, PulseAudio or PipeWire for mic access, xclip and xdotool for clipboard and terminal features (X11)
 
 > Linux support is in development. The platform abstraction layer exists (`compat/`) but is not yet fully tested.
 
@@ -171,28 +171,16 @@ Change the model in settings (gear icon → Whisper section) or via `--model`.
 
 Models download automatically on first use from HuggingFace, or pre-download via `python install.py`.
 
-## How It Compares
+## Highlights
 
-| | Whisper Typer | Wispr Flow | Superwhisper | OpenWhispr |
-|---|:---:|:---:|:---:|:---:|
-| **Price** | Free | $12/mo | $8.49/mo | Free / $8/mo |
-| **Fully offline** | Yes | No | Yes | Yes |
-| **Open source** | Yes | No | No | Yes |
-| **Terminal integration** | Yes | No | No | No |
-| **VAD (hands-free)** | Yes | Yes | Yes | Yes |
-| **Push-to-talk** | Yes | Yes | Yes | Yes |
-| **Windows** | Yes | Yes | Yes | Yes |
-| **macOS** | Planned | Yes | Yes | Yes |
-| **Linux** | Planned | No | No | Yes |
-| **AI text cleanup** | No | Yes | Yes | Yes |
-
-## Requirements
-
-- **Windows 10 or 11**
-- **Python 3.10+**
-- **CUDA GPU** recommended — CPU works but transcription is slower
-
-> macOS and Linux support is in development. The abstraction layer exists (`compat/`) but the backends are untested and not yet included in releases.
+- **Free and open source** — MIT licensed, no accounts, no subscriptions
+- **Fully offline** — No cloud, no internet, no telemetry
+- **Terminal integration** — Snap to terminal, auto-paste + Enter, background terminal detection
+- **Hands-free VAD** — Silero voice activity detection, just talk and it types
+- **Queued transcription** — Keeps recording while transcribing, no speech is lost
+- **Configurable hotkeys** — Customize push-to-talk, VAD toggle, and mute keybindings
+- **6 Whisper models** — From tiny (75 MB) to large-v3 (3 GB), pick your speed/quality tradeoff
+- **Cross-platform** — Windows ready, macOS and Linux support in development
 
 <details>
 <summary><b>Architecture</b></summary>
