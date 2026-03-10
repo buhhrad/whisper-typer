@@ -39,21 +39,20 @@ python -m whisper_typer
 <details>
 <summary><b>macOS / Linux / manual install</b></summary>
 
-<table>
-<tr>
-<td align="center"><a href="#windows"><img src="https://img.shields.io/badge/Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows"></a></td>
-<td align="center"><a href="#macos"><img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS"></a></td>
-<td align="center"><a href="#linux"><img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux"></a></td>
-</tr>
-</table>
+All platforms start the same way:
 
-**<span id="windows">Windows</span>** — `pip install .` then `python -m whisper_typer`
+```bash
+git clone https://github.com/buhhrad/whisper-typer.git
+cd whisper-typer
+```
 
-**<span id="macos">macOS</span>** — `pip3 install .` then `python3 -m whisper_typer`
+**Windows** — `pip install .` then `python -m whisper_typer`
+
+**macOS** — `pip3 install .` then `python3 -m whisper_typer`
 > macOS support is in development. The abstraction layer exists (`compat/`) but is not yet fully tested.
 
-**<span id="linux">Linux</span>** — `pip3 install .` then `python3 -m whisper_typer`
-> Requires xclip and xdotool for clipboard and terminal features (X11). Linux support is in development.
+**Linux** — `pip3 install .` then `python3 -m whisper_typer`
+> Requires `xclip` and `xdotool` for clipboard and terminal features (X11). Linux support is in development.
 
 </details>
 
