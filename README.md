@@ -8,12 +8,12 @@
           T Y P E R
 </pre>
 
+<img src="demo.gif" width="172" />
+
 **Local voice typing for your entire computer.**
 
 Offline voice-to-text that works anywhere — type into any app with your voice, or talk directly to CLI tools like Claude Code.
 <br>
-<img src="demo.gif" width="172" />
-<br><br><br>
 [![Windows](https://img.shields.io/badge/Windows_10%2F11-0078D4?logo=windows&logoColor=white)](https://github.com/buhhrad/whisper-typer)
 [![Python](https://img.shields.io/badge/Python_3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
