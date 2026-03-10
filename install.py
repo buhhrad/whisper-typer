@@ -39,14 +39,12 @@ def _styled(text: str, *codes: str) -> str:
 
 def _print_banner():
     banner = f"""
-{_styled("  ╭──────────────────────────────────────────╮", _DIM)}
-{_styled("  │", _DIM)}  {_styled("░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄", _AMBER, _BOLD)}  {_styled("│", _DIM)}
-{_styled("  │", _DIM)}  {_styled("░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄", _AMBER)}       {_styled("│", _DIM)}
-{_styled("  │", _DIM)}  {_styled("░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀", _DIM)}       {_styled("│", _DIM)}
-{_styled("  │", _DIM)}                                            {_styled("│", _DIM)}
-{_styled("  │", _DIM)}  {_styled("T Y P E R", _WHITE, _BOLD)}                              {_styled("│", _DIM)}
-{_styled("  │", _DIM)}  {_styled("Local voice typing — any platform", _GRAY)}        {_styled("│", _DIM)}
-{_styled("  ╰──────────────────────────────────────────╯", _DIM)}
+  {_styled("░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄", _AMBER, _BOLD)}
+  {_styled("░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄", _AMBER)}
+  {_styled("░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀", _DIM)}
+
+  {_styled("T Y P E R", _WHITE, _BOLD)}
+  {_styled("Local voice typing — any platform", _GRAY)}
 """
     print(banner)
 
@@ -295,7 +293,7 @@ def main():
     _section("Ready")
     print()
     print(f"  {_styled('Run from anywhere:', _GRAY)}")
-    print(f"  {_styled('$ whisper-typer', _AMBER, _BOLD)}")
+    print(f"  {_styled('$ python -m whisper_typer', _AMBER, _BOLD)}")
     print()
     if not has_cuda:
         print(f"  {_styled('Tip: For faster transcription, use a CUDA GPU', _DIM)}")
