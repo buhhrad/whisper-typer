@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160">
+  <style>
+    text { font-family: 'Courier New', monospace; fill: #c9d1d9; }
+    .art { font-size: 18px; letter-spacing: 0px; }
+    .typer { font-size: 16px; letter-spacing: 8px; fill: #8b949e; }
+  </style>
+  <text class="art" x="300" y="50" text-anchor="middle">░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄</text>
+  <text class="art" x="300" y="75" text-anchor="middle">░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄</text>
+  <text class="art" x="300" y="100" text-anchor="middle">░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀</text>
+  <text class="typer" x="300" y="130" text-anchor="middle">T Y P E R</text>
+</svg>
