@@ -3,9 +3,13 @@
 
 <img src="icons/banner.webp" width="500" />
 
+**Local, offline voice typing for your entire computer.**
+
+<br>
+
 <img src="demo.gif" width="172" />
 
-**Local, offline voice typing for your entire computer.**
+<br>
 
 [![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)](#windows)
 [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#macos)
