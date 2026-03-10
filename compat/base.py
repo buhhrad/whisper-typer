@@ -67,6 +67,16 @@ class PlatformBackend(ABC):
         """Return a handle/id for a terminal window, or None."""
         ...
 
+    def find_all_terminal_windows(
+        self,
+        title_exclude: list[str] | None = None,
+    ) -> list[tuple[Any, str]]:
+        """Return all visible terminal windows as [(handle, title), ...].
+
+        Used by the terminal selector UI when multiple terminals are open.
+        """
+        return []
+
     # ── focus management ────────────────────────────────────────────
     @abstractmethod
     def get_foreground_window(self) -> Any | None:

@@ -198,6 +198,38 @@ class WindowsBackend(PlatformBackend):
         # Fall back to first terminal found
         return candidates[0][0]
 
+    def find_all_terminal_windows(
+        self,
+        title_exclude: list[str] | None = None,
+    ) -> list[tuple[int, str]]:
+        """Enumerate all visible terminal windows.
+
+        Returns a list of (hwnd, title) tuples for the terminal selector UI.
+        """
+        if title_exclude is None:
+            title_exclude = []
+        candidates: list[tuple[int, str]] = []
+
+        def _enum_cb(hwnd: int, _lparam: int) -> bool:
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            cls_buf = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(hwnd, cls_buf, 256)
+            if cls_buf.value not in _TERMINAL_CLASSES:
+                return True
+            title_buf = ctypes.create_unicode_buffer(512)
+            user32.GetWindowTextW(hwnd, title_buf, 512)
+            title = title_buf.value
+            title_lower = title.lower()
+            for excl in title_exclude:
+                if excl.lower() in title_lower:
+                    return True
+            candidates.append((hwnd, title))
+            return True
+
+        user32.EnumWindows(_WNDENUMPROC(_enum_cb), 0)
+        return candidates
+
     # ── focus management ─────────────────────────────────────────────
 
     def get_foreground_window(self) -> int | None:

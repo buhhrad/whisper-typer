@@ -54,13 +54,13 @@ def _find_terminal_hwnd():
     )
 
 
-def send_to_terminal(text: str) -> bool:
+def send_to_terminal(text: str, target_hwnd=None) -> bool:
     """Find a terminal, paste text + Enter, restore focus back.
 
-    Focus management (including any OS-specific tricks) is handled
-    by the platform backend.
+    If *target_hwnd* is given and still valid, use it directly.
+    Otherwise fall back to auto-finding a terminal.
     """
-    target = _find_terminal_hwnd()
+    target = target_hwnd if (target_hwnd and _platform.is_window_valid(target_hwnd)) else _find_terminal_hwnd()
     if not target:
         _set_clipboard(text)
         return False
@@ -87,13 +87,13 @@ def send_to_terminal(text: str) -> bool:
 
 # ── Public API ────────────────────────────────────────────────────────
 
-def type_text(text: str, route: str = "Send to Terminal (paste + enter)") -> bool:
+def type_text(text: str, route: str = "Send to Terminal (paste + enter)", target_hwnd=None) -> bool:
     """Output text using the selected routing mode."""
     if not text:
         return False
 
     if route == "Send to Terminal (paste + enter)":
-        return send_to_terminal(text)
+        return send_to_terminal(text, target_hwnd=target_hwnd)
 
     if route == "Clipboard":
         return _set_clipboard(text)

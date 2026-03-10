@@ -130,6 +130,9 @@ class WhisperTyper:
         self._snap_tk_hwnd: int = 0
         self._platform = _platform
 
+        # Terminal target — user-selected terminal for snap and send-to-terminal
+        self._terminal_target_hwnd = None  # explicitly chosen terminal
+
         # Lazy imports — only load heavy modules when needed
         self._recorder = None
         self._hotkey_listener = None
@@ -807,6 +810,42 @@ class WhisperTyper:
                     t.configure(fg=COLOR_AMBER if on else _FG_DIM)))
                 w.bind("<ButtonRelease-1>", lambda e: self._toggle_snap())
 
+            # Terminal selector — shows all open terminals for targeting
+            terminals = self._get_all_terminals()
+            if len(terminals) > 1:
+                sel_label = tk.Label(
+                    p, text="Target terminal:", font=_FONT_BODY,
+                    fg=_FG_DIM, bg=_PANEL_BG, anchor="w", padx=8,
+                )
+                sel_label.pack(fill=tk.X, pady=(4, 0))
+
+                for hwnd, label in terminals:
+                    is_selected = (hwnd == self._terminal_target_hwnd)
+                    display = label if len(label) <= 45 else label[:42] + "..."
+                    fg = COLOR_AMBER if is_selected else _FG_DIM
+                    prefix = "> " if is_selected else "  "
+                    row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
+                    row.pack(fill=tk.X)
+                    lbl = tk.Label(
+                        row, text=f"{prefix}{display}", font=_FONT_MONO,
+                        fg=fg, bg=_PANEL_BG, anchor="w", padx=8,
+                    )
+                    lbl.pack(fill=tk.X)
+                    for w in (row, lbl):
+                        w.bind("<Enter>", lambda e, l=lbl: l.configure(fg=COLOR_AMBER))
+                        w.bind("<Leave>", lambda e, l=lbl, s=is_selected: (
+                            l.configure(fg=COLOR_AMBER if s else _FG_DIM)))
+                        w.bind("<ButtonRelease-1>",
+                               lambda e, h=hwnd: self._select_terminal(h))
+            elif len(terminals) == 1:
+                # Single terminal — auto-target it, show info
+                self._terminal_target_hwnd = terminals[0][0]
+                info_label = tk.Label(
+                    p, text=f"  {terminals[0][1][:45]}", font=_FONT_MONO,
+                    fg=_FG_DIM, bg=_PANEL_BG, anchor="w", padx=8,
+                )
+                info_label.pack(fill=tk.X, pady=(2, 0))
+
         # ── Restart button ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
         restart_btn = tk.Label(
@@ -877,12 +916,64 @@ class WhisperTyper:
     # ── Snap to terminal ─────────────────────────────────────────
 
     def _find_terminal_hwnd(self):
-        """Find a visible terminal window to snap to via platform backend."""
+        """Find a visible terminal window to snap to.
+
+        If the user has explicitly selected a terminal, use that (if still valid).
+        Otherwise fall back to auto-finding via platform backend.
+        """
+        if self._terminal_target_hwnd and self._platform.is_window_valid(self._terminal_target_hwnd):
+            return self._terminal_target_hwnd
         from config import TERMINAL_TITLE_HINTS, TERMINAL_TITLE_EXCLUDE
         return self._platform.find_terminal_window(
             title_hints=TERMINAL_TITLE_HINTS,
             title_exclude=TERMINAL_TITLE_EXCLUDE,
         )
+
+    def _get_all_terminals(self) -> list[tuple[int, str]]:
+        """Enumerate all visible terminal windows with deduplicated labels."""
+        from config import TERMINAL_TITLE_EXCLUDE
+        terminals = self._platform.find_all_terminal_windows(
+            title_exclude=TERMINAL_TITLE_EXCLUDE,
+        )
+        if not terminals:
+            return []
+
+        # Deduplicate identical titles by appending position or index
+        title_counts: dict[str, int] = {}
+        for _, title in terminals:
+            title_counts[title] = title_counts.get(title, 0) + 1
+
+        result: list[tuple[int, str]] = []
+        seen: dict[str, int] = {}
+        for hwnd, title in terminals:
+            if title_counts[title] > 1:
+                idx = seen.get(title, 0) + 1
+                seen[title] = idx
+                # Try to add screen position for differentiation
+                rect = self._platform.get_window_rect(hwnd)
+                if rect:
+                    label = f"{title} #{idx} ({rect[0]},{rect[1]})"
+                else:
+                    label = f"{title} #{idx}"
+            else:
+                label = title
+            result.append((hwnd, label))
+        return result
+
+    def _select_terminal(self, hwnd: int) -> None:
+        """User selected a specific terminal from the selector list."""
+        self._terminal_target_hwnd = hwnd
+        # If already snapped, re-snap to the new target
+        if self._snap_hwnd:
+            self._unsnap()
+            self._snap_hwnd = hwnd
+            self._snap_tk_hwnd = self._platform.get_tk_hwnd(self.root)
+            if not self._transparent_mode:
+                self._set_transparency(True)
+            self._snap_poll()
+        # Refresh the settings panel to show the new selection
+        self._close_settings()
+        self.root.after(50, self._open_settings)
 
     def _toggle_snap(self) -> None:
         if self._snap_hwnd:
@@ -1386,7 +1477,7 @@ class WhisperTyper:
         """Run text output in background thread. Always posts typing_done."""
         try:
             from typer import type_text
-            type_text(text, route=route)
+            type_text(text, route=route, target_hwnd=self._terminal_target_hwnd)
         except Exception:
             pass  # text is still on clipboard as fallback
         self._event_queue.put(("typing_done",))
