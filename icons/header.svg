@@ -1,11 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 160">
   <style>
     text { font-family: 'Courier New', monospace; fill: #c9d1d9; }
-    .art { font-size: 18px; letter-spacing: 0px; }
+    .art { font-size: 18px; }
     .typer { font-size: 16px; letter-spacing: 8px; fill: #8b949e; }
+    .bar { fill: #40d060; rx: 2; }
+    @keyframes eq1 { 0%,100%{height:60px;y:45px} 50%{height:25px;y:80px} }
+    @keyframes eq2 { 0%,100%{height:35px;y:70px} 50%{height:75px;y:30px} }
+    @keyframes eq3 { 0%,100%{height:50px;y:55px} 50%{height:20px;y:85px} }
+    @keyframes eq4 { 0%,100%{height:70px;y:35px} 50%{height:30px;y:75px} }
+    @keyframes eq5 { 0%,100%{height:40px;y:65px} 50%{height:65px;y:40px} }
+    @keyframes eq6 { 0%,100%{height:55px;y:50px} 50%{height:25px;y:80px} }
+    @keyframes eq7 { 0%,100%{height:30px;y:75px} 50%{height:55px;y:50px} }
+    .b1 { animation: eq1 1.2s ease-in-out infinite; }
+    .b2 { animation: eq2 0.9s ease-in-out infinite; }
+    .b3 { animation: eq3 1.5s ease-in-out infinite; }
+    .b4 { animation: eq4 0.7s ease-in-out infinite; }
+    .b5 { animation: eq5 1.1s ease-in-out infinite; }
+    .b6 { animation: eq6 0.8s ease-in-out infinite; }
+    .b7 { animation: eq7 1.3s ease-in-out infinite; }
   </style>
-  <text class="art" x="300" y="50" text-anchor="middle">░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄</text>
-  <text class="art" x="300" y="75" text-anchor="middle">░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄</text>
-  <text class="art" x="300" y="100" text-anchor="middle">░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀</text>
-  <text class="typer" x="300" y="130" text-anchor="middle">T Y P E R</text>
+  <text class="art" x="280" y="50" text-anchor="middle">░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄</text>
+  <text class="art" x="280" y="75" text-anchor="middle">░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄</text>
+  <text class="art" x="280" y="100" text-anchor="middle">░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀</text>
+  <text class="typer" x="280" y="130" text-anchor="middle">T Y P E R</text>
+  <rect class="bar b1" x="540" y="45" width="8" height="60" rx="2"/>
+  <rect class="bar b2" x="554" y="70" width="8" height="35" rx="2"/>
+  <rect class="bar b3" x="568" y="55" width="8" height="50" rx="2"/>
+  <rect class="bar b4" x="582" y="35" width="8" height="70" rx="2"/>
+  <rect class="bar b5" x="596" y="65" width="8" height="40" rx="2"/>
+  <rect class="bar b6" x="610" y="50" width="8" height="55" rx="2"/>
+  <rect class="bar b7" x="624" y="75" width="8" height="30" rx="2"/>
 </svg>
