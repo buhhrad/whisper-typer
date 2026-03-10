@@ -1,7 +1,7 @@
 
 <div align="center">
 
-<img src="icons/header.webp?v=4" width="500" />
+<img src="icons/banner.webp" width="500" />
 
 <img src="demo.gif" width="172" />
 
