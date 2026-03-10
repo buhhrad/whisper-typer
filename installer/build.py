@@ -27,6 +27,7 @@ SPEC_NAME = "WhisperTyper"
 INNO_PATHS = [
     r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     r"C:\Program Files\Inno Setup 6\ISCC.exe",
+    r"D:\Inno Setup 6\ISCC.exe",
 ]
 
 
