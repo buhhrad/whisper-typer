@@ -29,7 +29,7 @@ Offline voice-to-text that works anywhere — type into any app with your voice,
 
 A small floating widget that transcribes your speech locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and types it wherever you need it. Use it to voice-type into any application, or snap it to your terminal to talk directly to CLI tools like Claude Code.
 
-- **Works everywhere** — Voice-type into any focused window on your computer
+- **Works everywhere** — Voice-type into any focused text box on your computer. Click the text field you want first, then speak.
 - **Send to Terminal** — Finds a terminal in the background, pastes your text + Enter, and restores your focus. Talk to CLI tools without switching windows.
 - **Snap to Terminal** — Attaches to your terminal as a transparent overlay and follows the window (Windows)
 - **Lightweight** — Pure Python, no Electron. Starts in seconds.
@@ -46,7 +46,7 @@ A small floating widget that transcribes your speech locally using [faster-whisp
 
 ### Output Routing
 - **Send to Terminal** — Finds a terminal in the background, pastes your text + Enter, restores focus. Great for multitasking with CLI agents.
-- **Auto Paste** — Pastes directly into whatever window is focused
+- **Auto Paste** — Pastes into the currently focused text field
 - **Clipboard** — Copies to clipboard for manual pasting
 
 ### Interface
