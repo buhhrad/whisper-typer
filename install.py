@@ -239,7 +239,18 @@ def _prompt_shortcut() -> None:
     ico_path = _generate_icon()
 
     if sys.platform == "win32":
-        desktop = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
+        # Use Shell API to find actual Desktop (handles OneDrive redirect)
+        try:
+            result = subprocess.run(
+                ["powershell", "-Command", "[Environment]::GetFolderPath('Desktop')"],
+                capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            desktop = result.stdout.strip()
+        except Exception:
+            desktop = ""
+        if not desktop or not os.path.isdir(desktop):
+            desktop = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
         if not os.path.isdir(desktop):
             _step_fail("Desktop folder not found")
             return
