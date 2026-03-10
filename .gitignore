@@ -37,3 +37,9 @@ WhisperTyper.vbs
 # Test cache
 .pytest_cache/
 
+# Installer build artifacts
+installer/dist/
+installer/build/
+installer/output/
+*.spec
+

@@ -7,9 +7,21 @@ window position) to a JSON file alongside the script.
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 
-SETTINGS_FILE = Path(__file__).parent / "whisper_typer_settings.json"
+def _settings_dir() -> Path:
+    """Return the settings directory — %APPDATA%/WhisperTyper for installed
+    builds, or the script directory for development."""
+    if getattr(sys, "frozen", False):
+        appdata = Path(os.environ.get("APPDATA", Path.home()))
+        d = appdata / "WhisperTyper"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    return Path(__file__).parent
+
+SETTINGS_FILE = _settings_dir() / "whisper_typer_settings.json"
 
 _DEFAULTS = {
     "mic_device": None,       # device name string, or None for system default
