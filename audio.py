@@ -16,6 +16,9 @@ Threading model:
 from __future__ import annotations
 
 import collections
+import logging
+import logging.handlers
+import os
 import queue
 import threading
 import time
@@ -34,6 +37,19 @@ from config import (
     VAD_THRESHOLD,
     VAD_WINDOW_SAMPLES,
 )
+
+# ── VAD / stream logger ──────────────────────────────────────────────
+
+_log = logging.getLogger("whisper_typer.audio")
+_log.setLevel(logging.DEBUG)
+if not _log.handlers:
+    _log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vad.log")
+    _handler = logging.handlers.RotatingFileHandler(
+        _log_path, maxBytes=1_000_000, backupCount=1, encoding="utf-8",
+    )
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    _log.addHandler(_handler)
+    _log.propagate = False
 
 # ── Silero VAD loader ─────────────────────────────────────────────────
 
@@ -96,6 +112,12 @@ class Recorder:
         self._vad_queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=500)
         self._vad_thread: threading.Thread | None = None
 
+        # Stream error recovery
+        self._stream_retry_count = 0
+        self._stream_last_retry: float = 0.0
+        self._stream_max_retries = 3
+        self._stream_retry_backoff = 2.0  # seconds, doubles each attempt
+
     # ── Stream lifecycle ──────────────────────────────────────────
 
     def set_device(self, device_index: int | None) -> None:
@@ -121,8 +143,12 @@ class Recorder:
                 callback=self._audio_callback,
             )
             self._stream.start()
+            self._stream_retry_count = 0
+            _log.info("Audio stream opened (device=%s)", self._device_index)
         except Exception as e:
+            _log.error("Failed to open audio stream: %s: %s", type(e).__name__, e)
             self._queue.put(("audio_error", str(e)))
+            self._schedule_stream_retry()
 
     def close_stream(self) -> None:
         """Close the mic stream."""
@@ -133,6 +159,7 @@ class Recorder:
             except Exception:
                 pass
             self._stream = None
+            _log.info("Audio stream closed")
 
     # ── Recording control (PTT / Manual) ──────────────────────────
 
@@ -163,6 +190,7 @@ class Recorder:
 
     def enable_vad(self) -> None:
         """Enable always-on VAD mode."""
+        _log.info("VAD enabled")
         if not self._vad_model:
             self._vad_model = _load_vad()
         with self._vad_lock:
@@ -179,6 +207,7 @@ class Recorder:
 
     def disable_vad(self) -> None:
         """Disable VAD mode and stop the worker thread."""
+        _log.info("VAD disabled")
         with self._vad_lock:
             self._vad_enabled = False
             self._vad_speaking = False
@@ -199,6 +228,10 @@ class Recorder:
         MUST be lightweight — no model inference here. Just copy data and
         enqueue for the VAD worker thread.
         """
+        if status:
+            _log.warning("Audio stream status error: %s", status)
+            self._queue.put(("audio_error", f"Stream: {status}"))
+
         mono = indata[:, 0].copy() if indata.ndim > 1 else indata.flatten().copy()
 
         # Direct recording mode (PTT / Manual)
@@ -234,14 +267,88 @@ class Recorder:
         """Dedicated thread that runs Silero VAD inference off the PortAudio thread."""
         import torch
 
+        _log.info("VAD worker thread started")
+        chunks_since_health_check = 0
+        # ~5 seconds of audio at 32ms per VAD window = ~156 chunks
+        health_check_interval = int(5.0 / (VAD_WINDOW_SAMPLES / SAMPLE_RATE))
+
         while True:
             mono = self._vad_queue.get()
             if mono is None:
                 # Shutdown signal
+                _log.info("VAD worker thread stopping (shutdown signal)")
                 break
             if not self._vad_enabled:
                 continue
-            self._process_vad(mono, torch)
+            try:
+                self._process_vad(mono, torch)
+                chunks_since_health_check += 1
+                if chunks_since_health_check >= health_check_interval:
+                    chunks_since_health_check = 0
+                    self._check_stream_health()
+            except Exception as exc:
+                _log.error("VAD worker exception: %s: %s", type(exc).__name__, exc)
+
+    # ── Stream error recovery ─────────────────────────────────────────
+
+    def _check_stream_health(self) -> None:
+        """Verify the audio stream is still active; attempt recovery if not."""
+        if self._stream is None:
+            _log.warning("Stream health check: stream is None, attempting recovery")
+            self._attempt_stream_recovery()
+            return
+        try:
+            if not self._stream.active:
+                _log.warning("Stream health check: stream inactive, attempting recovery")
+                self._attempt_stream_recovery()
+        except Exception as exc:
+            _log.error("Stream health check error: %s: %s", type(exc).__name__, exc)
+            self._attempt_stream_recovery()
+
+    def _attempt_stream_recovery(self) -> None:
+        """Try to reopen the stream with backoff."""
+        now = time.monotonic()
+        backoff = self._stream_retry_backoff * (2 ** self._stream_retry_count)
+        if now - self._stream_last_retry < backoff:
+            return  # too soon, wait for backoff
+
+        if self._stream_retry_count >= self._stream_max_retries:
+            _log.error(
+                "Stream recovery: max retries (%d) exceeded, giving up",
+                self._stream_max_retries,
+            )
+            self._queue.put(("audio_error", "Mic stream lost — max retries exceeded"))
+            return
+
+        self._stream_retry_count += 1
+        self._stream_last_retry = now
+        _log.info(
+            "Stream recovery: attempt %d/%d (backoff %.1fs)",
+            self._stream_retry_count, self._stream_max_retries, backoff,
+        )
+
+        # Close whatever is left, then reopen
+        self.close_stream()
+        self.open_stream()
+
+    def _schedule_stream_retry(self) -> None:
+        """Schedule a deferred stream retry on a background thread."""
+        if self._stream_retry_count >= self._stream_max_retries:
+            _log.error(
+                "Stream retry: max retries (%d) exceeded, not scheduling another",
+                self._stream_max_retries,
+            )
+            return
+        backoff = self._stream_retry_backoff * (2 ** self._stream_retry_count)
+        _log.info("Scheduling stream retry in %.1fs", backoff)
+
+        def _retry():
+            time.sleep(backoff)
+            if self._stream is None and self._vad_enabled:
+                _log.info("Executing scheduled stream retry")
+                self._attempt_stream_recovery()
+
+        threading.Thread(target=_retry, daemon=True).start()
 
     def _process_vad(self, mono: np.ndarray, torch) -> None:
         """Feed audio to Silero VAD and manage speech segments.

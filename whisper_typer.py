@@ -68,10 +68,10 @@ from widgets import DropdownButton, MicIcon, VadToggle, LoadingBar, DurationBadg
 def _get_input_devices() -> list[tuple[int, str]]:
     """Return list of (device_index, display_name) for input devices.
 
-    Windows exposes each device 3+ times (MME, DirectSound, WASAPI) with
-    slightly different names. MME truncates to 32 chars, WASAPI shows full
-    names, and the parenthetical suffix varies. We deduplicate by extracting
-    the base name (before the first parenthesis) and keeping the best entry.
+    Some audio backends (e.g. Windows MME/DirectSound/WASAPI) expose each
+    device multiple times with slightly different names. We deduplicate by
+    extracting the base name (before the first parenthesis) and keeping the
+    entry with the most descriptive name.
     """
     _SKIP = {"Microsoft Sound Mapper - Input", "Primary Sound Capture Driver"}
     raw: list[tuple[int, str]] = []
@@ -155,7 +155,7 @@ class WhisperTyper:
         self.root.overrideredirect(True)  # no title bar
 
         # ── Main bar — one unified draggable block ───────────────
-        _BAR_BG = COLOR_TRANSPARENT if self._transparent_mode else COLOR_TERMINAL_BG
+        _BAR_BG = COLOR_TERMINAL_BG
         _BTN_BG = COLOR_TERMINAL_BG
         row = tk.Frame(self.root, bg=_BAR_BG)
         row.pack(fill=tk.BOTH, expand=True)
@@ -926,7 +926,7 @@ class WhisperTyper:
         self._close_settings()
 
     def _snap_to_terminal(self) -> None:
-        """Find and snap to a Windows Terminal window. Enables transparency."""
+        """Find and snap to a terminal window. Enables transparency."""
         hwnd = self._find_terminal_hwnd()
         if not hwnd:
             self._status.configure(text="No terminal found", fg=COLOR_TEXT_DIM)

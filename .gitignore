@@ -8,8 +8,10 @@ build/
 # User settings (generated at runtime)
 whisper_typer_settings.json
 
-# Error logs
+# Error / runtime logs
 vad_error.log
+vad.log
+vad.log.1
 
 # IDE
 .vscode/
@@ -33,6 +35,3 @@ WhisperTyper.vbs
 # Test cache
 .pytest_cache/
 
-# Cross-platform backends (untested, not yet public)
-compat/macos.py
-compat/linux.py
