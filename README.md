@@ -30,29 +30,25 @@ cd whisper-typer
 python install.py
 ```
 
-The installer checks your environment, installs dependencies, and optionally downloads a Whisper model. Then run:
+The installer checks your environment, installs dependencies, downloads a model, and creates a launcher. Then:
 
 ```bash
-python -m whisper_typer
+whisper-typer.bat        # Windows (double-click or run from terminal)
+./whisper-typer.sh       # macOS / Linux
 ```
 
 <details>
-<summary><b>macOS / Linux / manual install</b></summary>
-
-All platforms start the same way:
+<summary><b>macOS / Linux</b></summary>
 
 ```bash
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
+python3 install.py
+python3 whisper_typer.py
 ```
 
-**Windows** — `pip install .` then `python -m whisper_typer`
-
-**macOS** — `pip3 install .` then `python3 -m whisper_typer`
-> macOS support is in development. The abstraction layer exists (`compat/`) but is not yet fully tested.
-
-**Linux** — `pip3 install .` then `python3 -m whisper_typer`
-> Requires `xclip` and `xdotool` for clipboard and terminal features (X11). Linux support is in development.
+> macOS and Linux have platform abstraction layers in place but have not been fully tested.
+> Linux requires `xclip` and `xdotool` for clipboard and terminal features (X11).
 
 </details>
 

@@ -161,13 +161,43 @@ def _check_platform_deps() -> None:
         _step_ok("macOS tools", "pbcopy, osascript (built-in)")
 
 
+# ── Launcher ─────────────────────────────────────────────────────────
+
+def _create_launcher() -> None:
+    """Create a platform-specific launcher script after install."""
+    install_dir = os.path.dirname(os.path.abspath(__file__))
+    python = sys.executable
+
+    if sys.platform == "win32":
+        # .bat file — uses pythonw to avoid console window
+        pythonw = os.path.join(os.path.dirname(python), "pythonw.exe")
+        if not os.path.exists(pythonw):
+            pythonw = "pythonw"
+        bat_path = os.path.join(install_dir, "whisper-typer.bat")
+        with open(bat_path, "w") as f:
+            f.write(f'@echo off\n')
+            f.write(f'start "" "{pythonw}" "%~dp0whisper_typer.py" %*\n')
+        _step_ok("Created whisper-typer.bat")
+    else:
+        # Shell script for macOS/Linux
+        sh_path = os.path.join(install_dir, "whisper-typer.sh")
+        with open(sh_path, "w") as f:
+            f.write("#!/usr/bin/env bash\n")
+            f.write(f'cd "$(dirname "$0")"\n')
+            f.write(f'python3 whisper_typer.py "$@" &\n')
+            f.write("disown\n")
+        os.chmod(sh_path, 0o755)
+        _step_ok("Created whisper-typer.sh")
+
+
 # ── Install ───────────────────────────────────────────────────────────
 
 def _install_package() -> bool:
-    """Install whisper-typer via pip."""
+    """Install dependencies via pip."""
     try:
+        req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
         proc = subprocess.run(
-            [sys.executable, "-m", "pip", "install", ".", "--quiet"],
+            [sys.executable, "-m", "pip", "install", "-r", req_file, "--quiet"],
             cwd=os.path.dirname(os.path.abspath(__file__)),
             capture_output=True, text=True, timeout=300,
         )
@@ -288,12 +318,21 @@ def main():
             else:
                 _step_info(f"Download failed — model will download on first launch")
 
+    # ── Create launcher
+    _create_launcher()
+
     # ── Done
     print()
     _section("Ready")
     print()
-    print(f"  {_styled('Run from anywhere:', _GRAY)}")
-    print(f"  {_styled('python -m whisper_typer', _AMBER, _BOLD)}")
+    if sys.platform == "win32":
+        print(f"  {_styled('Double-click or run:', _GRAY)}")
+        print(f"  {_styled('whisper-typer.bat', _AMBER, _BOLD)}")
+    else:
+        print(f"  {_styled('Run:', _GRAY)}")
+        print(f"  {_styled('./whisper-typer.sh', _AMBER, _BOLD)}")
+    print()
+    print(f"  {_styled('Or:', _DIM)} python whisper_typer.py")
     print()
     if not has_cuda:
         print(f"  {_styled('Tip: For faster transcription, use a CUDA GPU', _DIM)}")

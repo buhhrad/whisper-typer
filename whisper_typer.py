@@ -1674,24 +1674,29 @@ class WhisperTyper:
                     target=self._do_type, args=(text, route), daemon=True
                 ).start()
             else:
-                # No speech detected — go idle immediately, show amber flash
-                self._state = STATE_IDLE
-                self._vad_cooldown_until = time.time() + 1.0
+                # No speech detected — check if there's queued audio first
+                has_pending = False
                 with self._pending_audio_lock:
-                    self._pending_audio.clear()
-                if self._recorder and self._recorder.vad_active:
-                    self._vad_btn.set_processing(False)
-                # Visual-only amber flash (state is already IDLE)
-                self._mic_btn.set_state("idle", COLOR_AMBER)
-                self._status.configure(text="No speech detected", fg=COLOR_AMBER)
-                self._cancel_elapsed_timer(hide_badge=True)
-                self.root.after(800, lambda: (
-                    self._mic_btn.set_state("idle", COLOR_TEXT_DIM),
-                    self._status.configure(
-                        text="Listening (VAD)\u2026" if (self._recorder and self._recorder.vad_active)
-                        else "Ready", fg=COLOR_TEXT,
-                    ),
-                ))
+                    has_pending = len(self._pending_audio) > 0
+                if has_pending:
+                    # Skip the amber flash — process next segment immediately
+                    self._process_next_or_idle()
+                else:
+                    # Nothing queued — show amber flash and go idle
+                    self._state = STATE_IDLE
+                    self._vad_cooldown_until = time.time() + 1.0
+                    if self._recorder and self._recorder.vad_active:
+                        self._vad_btn.set_processing(False)
+                    self._mic_btn.set_state("idle", COLOR_AMBER)
+                    self._status.configure(text="No speech detected", fg=COLOR_AMBER)
+                    self._cancel_elapsed_timer(hide_badge=True)
+                    self.root.after(800, lambda: (
+                        self._mic_btn.set_state("idle", COLOR_TEXT_DIM),
+                        self._status.configure(
+                            text="Listening (VAD)\u2026" if (self._recorder and self._recorder.vad_active)
+                            else "Ready", fg=COLOR_TEXT,
+                        ),
+                    ))
 
         elif kind == "typing_done":
             self._process_next_or_idle()

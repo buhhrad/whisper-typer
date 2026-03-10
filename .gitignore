@@ -28,7 +28,9 @@ Thumbs.db
 trends.py
 trends_results/
 
-# Personal launchers
+# Generated launchers
+whisper-typer.bat
+whisper-typer.sh
 claude-voice.bat
 WhisperTyper.vbs
 
