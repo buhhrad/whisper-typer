@@ -79,7 +79,7 @@ Or install manually:
 
 ```bash
 pip install .
-whisper-typer
+python -m whisper_typer
 ```
 
 **Requirements:** Windows 10/11, Python 3.10+, CUDA GPU recommended (CPU works but slower)
@@ -99,7 +99,7 @@ Or install manually:
 
 ```bash
 pip3 install .
-whisper-typer
+python3 -m whisper_typer
 ```
 
 **Requirements:** Python 3.10+, Apple Silicon recommended for best performance
@@ -121,7 +121,7 @@ Or install manually:
 
 ```bash
 pip3 install .
-whisper-typer
+python3 -m whisper_typer
 ```
 
 **Requirements:** Python 3.10+, CUDA GPU recommended, PulseAudio or PipeWire for mic access, xclip and xdotool for clipboard and terminal features (X11)
@@ -138,9 +138,9 @@ The installer checks your environment, installs dependencies, and optionally pre
 <summary><b>CLI options</b></summary>
 
 ```
-whisper-typer --model small       # Use a smaller/faster model
-whisper-typer --device cpu        # Force CPU (no CUDA needed)
-whisper-typer --list-devices      # List available microphones
+python -m whisper_typer --model small       # Use a smaller/faster model
+python -m whisper_typer --device cpu        # Force CPU (no CUDA needed)
+python -m whisper_typer --list-devices      # List available microphones
 ```
 
 </details>
