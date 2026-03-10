@@ -130,6 +130,8 @@ whisper-typer
 
 </details>
 
+> **Note:** Whisper Typer is built and tested on Windows. macOS and Linux have platform abstraction layers in place but have not been fully tested. If you run into issues on those platforms, [open an issue](https://github.com/buhhrad/whisper-typer/issues).
+
 The installer checks your environment, installs dependencies, and optionally pre-downloads a Whisper model.
 
 <details>
