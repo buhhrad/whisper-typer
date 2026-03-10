@@ -873,7 +873,7 @@ class WhisperTyper:
         # ── Restart button ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
         restart_btn = tk.Label(
-            p, text="Restart", font=_FONT_BODY,
+            p, text="\u26A1", font=_FONT_BODY,
             fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", anchor="center",
         )
         restart_btn.pack(fill=tk.X, pady=2)
