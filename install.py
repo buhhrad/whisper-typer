@@ -190,40 +190,11 @@ def _create_launcher() -> None:
         _step_ok("Created whisper-typer.sh")
 
 
-def _generate_icon() -> str | None:
-    """Generate a whisper-typer.ico file using PIL. Returns path or None."""
+def _get_icon() -> str | None:
+    """Return path to the desktop icon, or None if not found."""
     install_dir = os.path.dirname(os.path.abspath(__file__))
-    ico_path = os.path.join(install_dir, "whisper-typer.ico")
-    if os.path.exists(ico_path):
-        return ico_path
-    try:
-        from PIL import Image, ImageDraw
-        # Dark circle with amber mic — matches the app theme
-        sizes = [16, 32, 48, 64, 128, 256]
-        images = []
-        for sz in sizes:
-            img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(img)
-            p = sz / 64  # scale factor
-            # Background circle
-            draw.ellipse([int(4*p), int(4*p), int(60*p), int(60*p)], fill="#1a1a2a")
-            draw.ellipse([int(4*p), int(4*p), int(60*p), int(60*p)], outline="#3a3a50", width=max(1, int(2*p)))
-            # Mic capsule
-            lw = max(1, int(2*p))
-            draw.rounded_rectangle([int(24*p), int(14*p), int(40*p), int(38*p)],
-                                   radius=int(6*p), outline="#e0a820", width=lw)
-            # Mic arc
-            draw.arc([int(20*p), int(28*p), int(44*p), int(50*p)],
-                     start=180, end=0, fill="#e0a820", width=lw)
-            # Mic stem
-            draw.line([int(32*p), int(50*p), int(32*p), int(56*p)], fill="#e0a820", width=lw)
-            draw.line([int(24*p), int(56*p), int(40*p), int(56*p)], fill="#e0a820", width=lw)
-            images.append(img)
-        images[0].save(ico_path, format="ICO", sizes=[(s, s) for s in sizes],
-                       append_images=images[1:])
-        return ico_path
-    except Exception:
-        return None
+    ico_path = os.path.join(install_dir, "icons", "whisper-typer.ico")
+    return ico_path if os.path.exists(ico_path) else None
 
 
 def _prompt_shortcut() -> None:
@@ -236,7 +207,7 @@ def _prompt_shortcut() -> None:
         return
 
     install_dir = os.path.dirname(os.path.abspath(__file__))
-    ico_path = _generate_icon()
+    ico_path = _get_icon()
 
     if sys.platform == "win32":
         # Use Shell API to find actual Desktop (handles OneDrive redirect)

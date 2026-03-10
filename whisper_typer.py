@@ -360,7 +360,10 @@ class WhisperTyper:
 
     @staticmethod
     def _make_tray_image():
-        """Create a mic tray icon — dark circle with gray mic outline."""
+        """Load tray icon from icons/ folder, fall back to generated."""
+        tray_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "tray.png")
+        if os.path.exists(tray_path):
+            return Image.open(tray_path)
         img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         draw.ellipse([4, 4, 60, 60], fill="#1a1a2a")

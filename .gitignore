@@ -28,10 +28,9 @@ Thumbs.db
 trends.py
 trends_results/
 
-# Generated launchers & icon
+# Generated launchers
 whisper-typer.bat
 whisper-typer.sh
-whisper-typer.ico
 claude-voice.bat
 WhisperTyper.vbs
 
