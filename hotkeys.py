@@ -116,12 +116,30 @@ class HotkeyListener:
             self._listener.stop()
             self._listener = None
 
+    # Virtual key codes for keys that pynput reports with char=None (dead keys, etc.)
+    _VK_NAMES = {
+        192: "grave",       # ` ~
+        189: "minus",       # - _
+        187: "equal",       # = +
+        219: "bracketleft", # [ {
+        221: "bracketright",# ] }
+        220: "backslash",   # \ |
+        186: "semicolon",   # ; :
+        222: "apostrophe",  # ' "
+        188: "comma",       # , <
+        190: "period",      # . >
+        191: "slash",       # / ?
+    }
+
     def _normalize(self, key) -> str | None:
         """Convert a pynput key to a normalized string name."""
         if key in _KEY_NAMES:
             return _KEY_NAMES[key]
         if hasattr(key, "char") and key.char:
             return key.char.lower()
+        # Handle keys where pynput gives char=None (dead keys, punctuation)
+        if hasattr(key, "vk") and key.vk in self._VK_NAMES:
+            return self._VK_NAMES[key.vk]
         return None
 
     def _on_press(self, key) -> None:

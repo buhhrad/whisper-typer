@@ -12,7 +12,7 @@
 
 Offline voice-to-text that works anywhere — type into any app with your voice, or talk directly to CLI tools like Claude Code, Codex, and Warp.
 <br>
-<img src="demo.gif" width="172" />
+<img src="demo.gif" width="500" />
 <br><br><br>
 [![Windows](https://img.shields.io/badge/Windows_10%2F11-0078D4?logo=windows&logoColor=white)](https://github.com/buhhrad/whisper-typer)
 [![Python](https://img.shields.io/badge/Python_3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
@@ -53,9 +53,21 @@ A small floating widget that transcribes your speech locally using [faster-whisp
 - **Always-on-Top** — Stays visible while you work in other apps
 - **System Tray** — Minimizes to tray, stays out of the way
 - **Duration Badge** — Shows recording time with a smooth animated pill
+- **Amber Flash** — Widget flashes amber when no speech was detected in the recording
 - **Fully Configurable** — Model, device, hotkeys, mic, output routing — all from the settings popup
 
 ## Quick Start
+
+<table>
+<tr>
+<td align="center"><a href="#windows"><img src="https://img.shields.io/badge/Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows"></a></td>
+<td align="center"><a href="#macos"><img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS"></a></td>
+<td align="center"><a href="#linux"><img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux"></a></td>
+</tr>
+</table>
+
+<details open>
+<summary><b id="windows">Windows</b></summary>
 
 ```bash
 git clone https://github.com/buhhrad/whisper-typer.git
@@ -63,14 +75,62 @@ cd whisper-typer
 python install.py
 ```
 
-The installer checks your environment, installs dependencies, and optionally pre-downloads a Whisper model.
-
 Or install manually:
 
 ```bash
 pip install .
 whisper-typer
 ```
+
+**Requirements:** Windows 10/11, Python 3.10+, CUDA GPU recommended (CPU works but slower)
+
+</details>
+
+<details>
+<summary><b id="macos">macOS</b></summary>
+
+```bash
+git clone https://github.com/buhhrad/whisper-typer.git
+cd whisper-typer
+python3 install.py
+```
+
+Or install manually:
+
+```bash
+pip3 install .
+whisper-typer
+```
+
+**Requirements:** Python 3.10+, Apple Silicon recommended for best performance
+
+> macOS support is in development. The platform abstraction layer exists (`compat/`) but is not yet fully tested.
+
+</details>
+
+<details>
+<summary><b id="linux">Linux</b></summary>
+
+```bash
+git clone https://github.com/buhhrad/whisper-typer.git
+cd whisper-typer
+python3 install.py
+```
+
+Or install manually:
+
+```bash
+pip3 install .
+whisper-typer
+```
+
+**Requirements:** Python 3.10+, CUDA GPU recommended, PulseAudio or PipeWire for microphone access
+
+> Linux support is in development. The platform abstraction layer exists (`compat/`) but is not yet fully tested.
+
+</details>
+
+The installer checks your environment, installs dependencies, and optionally pre-downloads a Whisper model.
 
 <details>
 <summary><b>CLI options</b></summary>
