@@ -25,7 +25,7 @@ jobs:
             artifact: WhisperTyper-macOS.dmg
             pyinstaller_args: "--windowed"
           - os: ubuntu-latest
-            artifact: WhisperTyper-Linux.tar.xz
+            artifact: WhisperTyper-Linux.tar.gz
             pyinstaller_args: ""
 
     runs-on: ${{ matrix.os }}
@@ -47,8 +47,12 @@ jobs:
           sudo apt-get install -y libasound2-dev portaudio19-dev
 
       - name: Install Python dependencies
+        shell: bash
         run: |
           pip install --upgrade pip
+          # Install CPU-only torch first (much smaller than default CUDA bundle)
+          # Users who want CUDA can use the developer setup instead
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
           pip install pyinstaller
 
@@ -237,9 +241,9 @@ jobs:
           Categories=Utility;Audio;
           DESKTOP
 
-          # Archive with xz for better compression
+          # Archive
           cd dist
-          tar -cJf ../WhisperTyper-Linux.tar.xz WhisperTyper/
+          tar -czf ../WhisperTyper-Linux.tar.gz WhisperTyper/
 
       # ── Upload to release ───────────────────────────────────────
       - name: Determine release tag
