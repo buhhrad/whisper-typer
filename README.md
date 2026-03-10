@@ -3,7 +3,7 @@
 
 <img src="icons/banner.webp" width="500" />
 
-<br>
+<br><br>
 
 <img src="demo.gif" width="172" />
 
