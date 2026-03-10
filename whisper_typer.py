@@ -813,11 +813,21 @@ class WhisperTyper:
             # Terminal selector — shows all open terminals for targeting
             terminals = self._get_all_terminals()
             if len(terminals) > 1:
+                sel_row = tk.Frame(p, bg=_PANEL_BG)
+                sel_row.pack(fill=tk.X, pady=(4, 0))
                 sel_label = tk.Label(
-                    p, text="Target terminal:", font=_FONT_BODY,
+                    sel_row, text="Target terminal:", font=_FONT_BODY,
                     fg=_FG_DIM, bg=_PANEL_BG, anchor="w", padx=8,
                 )
-                sel_label.pack(fill=tk.X, pady=(4, 0))
+                sel_label.pack(side=tk.LEFT)
+                refresh_btn = tk.Label(
+                    sel_row, text="\u21bb", font=_FONT_BODY,
+                    fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", padx=8,
+                )
+                refresh_btn.pack(side=tk.RIGHT)
+                refresh_btn.bind("<Enter>", lambda e: refresh_btn.configure(fg=COLOR_AMBER))
+                refresh_btn.bind("<Leave>", lambda e: refresh_btn.configure(fg=_FG_DIM))
+                refresh_btn.bind("<ButtonRelease-1>", lambda e: self._refresh_settings())
 
                 for hwnd, label in terminals:
                     is_selected = (hwnd == self._terminal_target_hwnd)
@@ -837,14 +847,28 @@ class WhisperTyper:
                             l.configure(fg=COLOR_AMBER if s else _FG_DIM)))
                         w.bind("<ButtonRelease-1>",
                                lambda e, h=hwnd: self._select_terminal(h))
-            elif len(terminals) == 1:
-                # Single terminal — auto-target it, show info
-                self._terminal_target_hwnd = terminals[0][0]
+            elif len(terminals) >= 0:
+                # Show terminal info (or "no terminals") with refresh button
+                if len(terminals) == 1:
+                    self._terminal_target_hwnd = terminals[0][0]
+                    info_text = f"  {terminals[0][1][:40]}"
+                else:
+                    info_text = "  No terminals found"
+                info_row = tk.Frame(p, bg=_PANEL_BG)
+                info_row.pack(fill=tk.X, pady=(2, 0))
                 info_label = tk.Label(
-                    p, text=f"  {terminals[0][1][:45]}", font=_FONT_MONO,
+                    info_row, text=info_text, font=_FONT_MONO,
                     fg=_FG_DIM, bg=_PANEL_BG, anchor="w", padx=8,
                 )
-                info_label.pack(fill=tk.X, pady=(2, 0))
+                info_label.pack(side=tk.LEFT)
+                refresh_btn = tk.Label(
+                    info_row, text="\u21bb", font=_FONT_BODY,
+                    fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", padx=8,
+                )
+                refresh_btn.pack(side=tk.RIGHT)
+                refresh_btn.bind("<Enter>", lambda e: refresh_btn.configure(fg=COLOR_AMBER))
+                refresh_btn.bind("<Leave>", lambda e: refresh_btn.configure(fg=_FG_DIM))
+                refresh_btn.bind("<ButtonRelease-1>", lambda e: self._refresh_settings())
 
         # ── Restart button ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
@@ -959,6 +983,11 @@ class WhisperTyper:
                 label = title
             result.append((hwnd, label))
         return result
+
+    def _refresh_settings(self) -> None:
+        """Close and reopen settings to refresh the terminal list."""
+        self._close_settings()
+        self.root.after(50, self._open_settings)
 
     def _select_terminal(self, hwnd: int) -> None:
         """User selected a specific terminal from the selector list."""
