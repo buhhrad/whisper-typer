@@ -10,7 +10,7 @@
 
 **Local voice typing for your entire computer.**
 
-Offline voice-to-text that works anywhere — type into any app with your voice, or talk directly to CLI tools like Claude Code, Codex, and Warp.
+Offline voice-to-text that works anywhere — type into any app with your voice, or talk directly to CLI tools like Claude Code.
 <br>
 <img src="demo.gif" width="172" />
 <br><br><br>
@@ -27,7 +27,7 @@ Offline voice-to-text that works anywhere — type into any app with your voice,
 
 ## Why Whisper Typer?
 
-A small floating widget that transcribes your speech locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and types it wherever you need it. Use it to voice-type into any application, or snap it to your terminal to talk directly to CLI agents like Claude Code, Codex, or any command-line tool.
+A small floating widget that transcribes your speech locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and types it wherever you need it. Use it to voice-type into any application, or snap it to your terminal to talk directly to CLI tools like Claude Code.
 
 - **Works everywhere** — Voice-type into any focused window on your computer
 - **Send to Terminal** — Finds a terminal in the background, pastes your text + Enter, and restores your focus. Talk to CLI tools without switching windows.
