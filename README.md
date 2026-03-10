@@ -24,46 +24,53 @@
 
 ## Quick Start
 
+Clone the repo wherever you want to keep it:
+
+### Windows
+
 ```bash
+cd %USERPROFILE%\Desktop
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
 python install.py
+whisper-typer.bat
 ```
 
-The installer checks your environment, installs dependencies, downloads a model, and creates a launcher. Then:
+### macOS
 
 ```bash
-whisper-typer.bat        # Windows (double-click or run from terminal)
-./whisper-typer.sh       # macOS / Linux
-```
-
-<details>
-<summary><b>macOS / Linux</b></summary>
-
-```bash
+cd ~/Desktop
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
 python3 install.py
-python3 whisper_typer.py
+./whisper-typer.sh
 ```
 
-> macOS and Linux have platform abstraction layers in place but have not been fully tested.
-> Linux requires `xclip` and `xdotool` for clipboard and terminal features (X11).
+### Linux
 
-</details>
+```bash
+cd ~/Desktop
+git clone https://github.com/buhhrad/whisper-typer.git
+cd whisper-typer
+sudo apt install xclip xdotool   # required for clipboard & terminal features
+python3 install.py
+./whisper-typer.sh
+```
+
+The installer checks your environment, installs dependencies, downloads a model, and creates a launcher you can double-click or run from the terminal.
+
+> **Note:** Whisper Typer is built and tested on Windows. macOS and Linux support is in development — the platform abstraction layer exists (`compat/`) but is not yet fully tested. If you run into issues, [open an issue](https://github.com/buhhrad/whisper-typer/issues).
 
 <details>
 <summary><b>CLI options</b></summary>
 
 ```
-python -m whisper_typer --model small       # Use a smaller/faster model
-python -m whisper_typer --device cpu        # Force CPU (no CUDA needed)
-python -m whisper_typer --list-devices      # List available microphones
+python whisper_typer.py --model small       # Use a smaller/faster model
+python whisper_typer.py --device cpu        # Force CPU (no CUDA needed)
+python whisper_typer.py --list-devices      # List available microphones
 ```
 
 </details>
-
-> **Note:** Whisper Typer is built and tested on Windows. macOS and Linux have platform abstraction layers in place but have not been fully tested. If you run into issues, [open an issue](https://github.com/buhhrad/whisper-typer/issues).
 
 ---
 
