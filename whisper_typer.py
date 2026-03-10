@@ -42,6 +42,51 @@ except ImportError:
     _HAS_TRAY = False
 
 import settings as user_settings
+
+
+class _Tooltip:
+    """Lightweight hover tooltip for tkinter widgets."""
+
+    def __init__(self, widget, text: str, delay: int = 400):
+        self._widget = widget
+        self._text = text
+        self._delay = delay
+        self._tip = None
+        self._after_id = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._cancel, add="+")
+
+    def _schedule(self, _event):
+        self._cancel()
+        self._after_id = self._widget.after(self._delay, self._show)
+
+    def _cancel(self, _event=None):
+        if self._after_id:
+            self._widget.after_cancel(self._after_id)
+            self._after_id = None
+        self._hide()
+
+    def _show(self):
+        x = self._widget.winfo_rootx() + self._widget.winfo_width() // 2
+        y = self._widget.winfo_rooty() - 24
+        self._tip = tw = tk.Toplevel(self._widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_attributes("-topmost", True)
+        tw.configure(bg="#1a1a2e")
+        lbl = tk.Label(
+            tw, text=self._text, fg="#c0c0c0", bg="#1a1a2e",
+            font=("Segoe UI", 8), padx=6, pady=2,
+        )
+        lbl.pack()
+        tw.update_idletasks()
+        tw.wm_geometry(f"+{x - tw.winfo_width() // 2}+{y}")
+
+    def _hide(self):
+        if self._tip:
+            self._tip.destroy()
+            self._tip = None
+
+
 from config import (
     COLOR_AMBER,
     COLOR_BLUE,
@@ -642,12 +687,12 @@ class WhisperTyper:
                 "whisper_model", model_var.get(), restart_label),
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        # GPU row
+        # Compute device row
         gpu_row = tk.Frame(p, bg=_PANEL_BG)
         gpu_row.pack(fill=tk.X, pady=2)
         tk.Label(
-            gpu_row, text="GPU", font=_FONT_LABEL,
-            fg=_FG_DIM, bg=_PANEL_BG, width=5, anchor="w",
+            gpu_row, text="Compute", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=8, anchor="w",
         ).pack(side=tk.LEFT)
         DropdownButton(
             gpu_row, textvariable=device_var, values=_DEVICE_OPTIONS,
@@ -825,6 +870,7 @@ class WhisperTyper:
                     fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", padx=8,
                 )
                 refresh_btn.pack(side=tk.RIGHT)
+                _Tooltip(refresh_btn, "Refresh terminals")
                 refresh_btn.bind("<Enter>", lambda e: refresh_btn.configure(fg=COLOR_AMBER))
                 refresh_btn.bind("<Leave>", lambda e: refresh_btn.configure(fg=_FG_DIM))
                 refresh_btn.bind("<ButtonRelease-1>", lambda e: self._refresh_settings())
@@ -866,6 +912,7 @@ class WhisperTyper:
                     fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", padx=8,
                 )
                 refresh_btn.pack(side=tk.RIGHT)
+                _Tooltip(refresh_btn, "Refresh terminals")
                 refresh_btn.bind("<Enter>", lambda e: refresh_btn.configure(fg=COLOR_AMBER))
                 refresh_btn.bind("<Leave>", lambda e: refresh_btn.configure(fg=_FG_DIM))
                 refresh_btn.bind("<ButtonRelease-1>", lambda e: self._refresh_settings())
@@ -873,10 +920,11 @@ class WhisperTyper:
         # ── Restart button ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
         restart_btn = tk.Label(
-            p, text="\u26A1", font=_FONT_BODY,
+            p, text="\u27F3", font=_FONT_BODY,
             fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", anchor="center",
         )
         restart_btn.pack(fill=tk.X, pady=2)
+        _Tooltip(restart_btn, "Restart app")
         restart_btn.bind("<Enter>", lambda e: restart_btn.configure(fg=COLOR_AMBER))
         restart_btn.bind("<Leave>", lambda e: restart_btn.configure(fg=_FG_DIM))
         restart_btn.bind("<ButtonRelease-1>", lambda e: self._restart())
