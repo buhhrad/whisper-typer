@@ -1,0 +1,229 @@
+name: Build Installers
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach assets to (e.g. v1.1.0)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: WhisperTyperSetup-Windows.exe
+            pyinstaller_args: "--windowed --icon icons/whisper-typer.ico"
+          - os: macos-latest
+            artifact: WhisperTyper-macOS.dmg
+            pyinstaller_args: "--windowed"
+          - os: ubuntu-latest
+            artifact: WhisperTyper-Linux.tar.gz
+            pyinstaller_args: ""
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev portaudio19-dev
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(python -c "
+          for line in open('pyproject.toml'):
+              if line.strip().startswith('version'):
+                  print(line.split('\"')[1])
+                  break
+          ")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── PyInstaller (all platforms) ──────────────────────────────
+      - name: Build with PyInstaller
+        shell: bash
+        run: |
+          # Collect data files
+          SD_PATH=$(python -c "import _sounddevice_data, os; print(os.path.dirname(_sounddevice_data.__file__))" 2>/dev/null || echo "")
+
+          ARGS="--name WhisperTyper --noconfirm"
+          ARGS="$ARGS --add-data icons:icons"
+          ARGS="$ARGS --add-data compat:compat"
+
+          if [ -n "$SD_PATH" ]; then
+            ARGS="$ARGS --add-data $SD_PATH:_sounddevice_data"
+          fi
+
+          # Hidden imports
+          for imp in sounddevice _sounddevice_data ctranslate2 faster_whisper huggingface_hub tokenizers; do
+            ARGS="$ARGS --hidden-import $imp"
+          done
+
+          # Platform-specific hidden imports
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ARGS="$ARGS --hidden-import pynput.keyboard._win32"
+            ARGS="$ARGS --hidden-import pynput.mouse._win32"
+            ARGS="$ARGS --hidden-import pystray._win32"
+            ARGS="$ARGS --windowed"
+            ARGS="$ARGS --icon icons/whisper-typer.ico"
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            ARGS="$ARGS --hidden-import pynput.keyboard._darwin"
+            ARGS="$ARGS --hidden-import pynput.mouse._darwin"
+            ARGS="$ARGS --hidden-import pystray._darwin"
+            ARGS="$ARGS --windowed"
+          else
+            ARGS="$ARGS --hidden-import pynput.keyboard._xorg"
+            ARGS="$ARGS --hidden-import pynput.mouse._xorg"
+            ARGS="$ARGS --hidden-import pystray._appindicator"
+          fi
+
+          ARGS="$ARGS --hidden-import PIL._tkinter_finder"
+
+          # Collect all from key packages
+          ARGS="$ARGS --collect-all faster_whisper"
+          ARGS="$ARGS --collect-all ctranslate2"
+          ARGS="$ARGS --collect-all torch"
+
+          # Exclude unnecessary modules
+          for exc in matplotlib scipy pandas IPython notebook tensorboard sympy jinja2 trends; do
+            ARGS="$ARGS --exclude-module $exc"
+          done
+
+          echo "Running: pyinstaller $ARGS whisper_typer.py"
+          pyinstaller $ARGS whisper_typer.py
+
+      # ── Package: Windows (Inno Setup) ───────────────────────────
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=$version `
+            /DSourceDir="$PWD\dist\WhisperTyper" `
+            /DOutputDir="$PWD\output" `
+            "installer\setup.iss"
+          Move-Item "output\WhisperTyperSetup.exe" "WhisperTyperSetup-Windows.exe"
+
+      # ── Package: macOS (DMG) ────────────────────────────────────
+      - name: Build macOS DMG
+        if: runner.os == 'macOS'
+        run: |
+          # PyInstaller creates a .app on macOS with --windowed
+          APP_PATH="dist/WhisperTyper.app"
+          if [ ! -d "$APP_PATH" ]; then
+            # Fallback: bundle the folder into a simple .app structure
+            APP_PATH="dist/Whisper Typer.app"
+            mkdir -p "$APP_PATH/Contents/MacOS"
+            mkdir -p "$APP_PATH/Contents/Resources"
+            cp -R dist/WhisperTyper/* "$APP_PATH/Contents/MacOS/"
+
+            cat > "$APP_PATH/Contents/Info.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>Whisper Typer</string>
+            <key>CFBundleDisplayName</key>
+            <string>Whisper Typer</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.buhhrad.whispertyper</string>
+            <key>CFBundleVersion</key>
+            <string>${{ steps.version.outputs.version }}</string>
+            <key>CFBundleExecutable</key>
+            <string>WhisperTyper</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>NSMicrophoneUsageDescription</key>
+            <string>Whisper Typer needs microphone access for voice typing.</string>
+          </dict>
+          </plist>
+          PLIST
+          fi
+
+          # Create DMG
+          hdiutil create -volname "Whisper Typer" \
+            -srcfolder dist/ \
+            -ov -format UDZO \
+            "WhisperTyper-macOS.dmg"
+
+      # ── Package: Linux (tar.gz) ─────────────────────────────────
+      - name: Build Linux archive
+        if: runner.os == 'Linux'
+        run: |
+          # Create launcher script
+          cat > dist/WhisperTyper/whisper-typer.sh << 'LAUNCHER'
+          #!/usr/bin/env bash
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          exec "$DIR/WhisperTyper" "$@"
+          LAUNCHER
+          chmod +x dist/WhisperTyper/whisper-typer.sh
+          chmod +x dist/WhisperTyper/WhisperTyper
+
+          # Create .desktop file
+          cat > dist/WhisperTyper/whisper-typer.desktop << DESKTOP
+          [Desktop Entry]
+          Type=Application
+          Name=Whisper Typer
+          Comment=Local voice typing — offline speech-to-text
+          Exec=WhisperTyper
+          Terminal=false
+          Categories=Utility;Audio;
+          DESKTOP
+
+          # Archive
+          cd dist
+          tar -czf ../WhisperTyper-Linux.tar.gz WhisperTyper/
+
+      # ── Upload to release ───────────────────────────────────────
+      - name: Determine release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v${{ steps.version.outputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: ${{ matrix.artifact }}
