@@ -14,9 +14,9 @@
 
 **Local, offline voice typing for your entire computer.**
 
-[![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)](https://github.com/buhhrad/whisper-typer)
-[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](https://github.com/buhhrad/whisper-typer)
-[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://github.com/buhhrad/whisper-typer)
+[![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)](#windows)
+[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#macos)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#linux)
 [![Python](https://img.shields.io/badge/Python_3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/buhhrad/whisper-typer?style=flat)](https://github.com/buhhrad/whisper-typer/stargazers)
