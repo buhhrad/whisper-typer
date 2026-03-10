@@ -1,33 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 160">
-  <style>
-    text { font-family: 'Courier New', monospace; fill: #c9d1d9; }
-    .art { font-size: 18px; }
-    .typer { font-size: 16px; letter-spacing: 8px; fill: #8b949e; }
-    .bar { fill: #40d060; rx: 2; }
-    @keyframes eq1 { 0%,100%{height:60px;y:45px} 50%{height:25px;y:80px} }
-    @keyframes eq2 { 0%,100%{height:35px;y:70px} 50%{height:75px;y:30px} }
-    @keyframes eq3 { 0%,100%{height:50px;y:55px} 50%{height:20px;y:85px} }
-    @keyframes eq4 { 0%,100%{height:70px;y:35px} 50%{height:30px;y:75px} }
-    @keyframes eq5 { 0%,100%{height:40px;y:65px} 50%{height:65px;y:40px} }
-    @keyframes eq6 { 0%,100%{height:55px;y:50px} 50%{height:25px;y:80px} }
-    @keyframes eq7 { 0%,100%{height:30px;y:75px} 50%{height:55px;y:50px} }
-    .b1 { animation: eq1 1.2s ease-in-out infinite; }
-    .b2 { animation: eq2 0.9s ease-in-out infinite; }
-    .b3 { animation: eq3 1.5s ease-in-out infinite; }
-    .b4 { animation: eq4 0.7s ease-in-out infinite; }
-    .b5 { animation: eq5 1.1s ease-in-out infinite; }
-    .b6 { animation: eq6 0.8s ease-in-out infinite; }
-    .b7 { animation: eq7 1.3s ease-in-out infinite; }
-  </style>
-  <text class="art" x="280" y="50" text-anchor="middle">░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄</text>
-  <text class="art" x="280" y="75" text-anchor="middle">░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄</text>
-  <text class="art" x="280" y="100" text-anchor="middle">░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀</text>
-  <text class="typer" x="280" y="130" text-anchor="middle">T Y P E R</text>
-  <rect class="bar b1" x="540" y="45" width="8" height="60" rx="2"/>
-  <rect class="bar b2" x="554" y="70" width="8" height="35" rx="2"/>
-  <rect class="bar b3" x="568" y="55" width="8" height="50" rx="2"/>
-  <rect class="bar b4" x="582" y="35" width="8" height="70" rx="2"/>
-  <rect class="bar b5" x="596" y="65" width="8" height="40" rx="2"/>
-  <rect class="bar b6" x="610" y="50" width="8" height="55" rx="2"/>
-  <rect class="bar b7" x="624" y="75" width="8" height="30" rx="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 150">
+  <text font-family="'Courier New',monospace" font-size="18" fill="#c9d1d9" text-anchor="middle" x="270" y="45">░█░█░█░█░▀█▀░█▀▀░█▀█░█▀▀░█▀▄</text>
+  <text font-family="'Courier New',monospace" font-size="18" fill="#c9d1d9" text-anchor="middle" x="270" y="70">░█▄█░█▀█░░█░░▀▀█░█▀▀░█▀▀░█▀▄</text>
+  <text font-family="'Courier New',monospace" font-size="18" fill="#c9d1d9" text-anchor="middle" x="270" y="95">░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░░░▀▀▀░▀░▀</text>
+  <text font-family="'Courier New',monospace" font-size="16" fill="#8b949e" text-anchor="middle" letter-spacing="8" x="270" y="125">T Y P E R</text>
+
+  <g transform="translate(540,10)">
+    <rect x="0" width="9" rx="2" fill="#40d060" y="30" height="60">
+      <animate attributeName="height" values="60;25;60" dur="1.2s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="30;65;30" dur="1.2s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="15" width="9" rx="2" fill="#40d060" y="55" height="35">
+      <animate attributeName="height" values="35;75;35" dur="0.9s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="55;15;55" dur="0.9s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="30" width="9" rx="2" fill="#40d060" y="40" height="50">
+      <animate attributeName="height" values="50;20;50" dur="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="40;70;40" dur="1.5s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="45" width="9" rx="2" fill="#e84040" y="20" height="70">
+      <animate attributeName="height" values="70;30;70" dur="0.7s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="20;60;20" dur="0.7s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="60" width="9" rx="2" fill="#40d060" y="50" height="40">
+      <animate attributeName="height" values="40;65;40" dur="1.1s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="50;25;50" dur="1.1s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="75" width="9" rx="2" fill="#40d060" y="35" height="55">
+      <animate attributeName="height" values="55;25;55" dur="0.8s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="35;65;35" dur="0.8s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="90" width="9" rx="2" fill="#40d060" y="60" height="30">
+      <animate attributeName="height" values="30;55;30" dur="1.3s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="60;35;60" dur="1.3s" repeatCount="indefinite"/>
+    </rect>
+  </g>
 </svg>
