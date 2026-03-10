@@ -24,40 +24,32 @@
 
 ## Quick Start
 
-Clone the repo wherever you want to keep it:
-
 ### Windows
 
 ```bash
-cd %USERPROFILE%\Desktop
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
 python install.py
-whisper-typer.bat
 ```
 
 ### macOS
 
 ```bash
-cd ~/Desktop
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
 python3 install.py
-./whisper-typer.sh
 ```
 
 ### Linux
 
 ```bash
-cd ~/Desktop
+sudo apt install xclip xdotool   # required for clipboard & terminal features
 git clone https://github.com/buhhrad/whisper-typer.git
 cd whisper-typer
-sudo apt install xclip xdotool   # required for clipboard & terminal features
 python3 install.py
-./whisper-typer.sh
 ```
 
-The installer checks your environment, installs dependencies, downloads a model, and creates a launcher you can double-click or run from the terminal.
+The installer checks your environment, installs dependencies, downloads a model, and offers to create a desktop shortcut. Just run the installer and follow the prompts.
 
 > **Note:** Whisper Typer is built and tested on Windows. macOS and Linux support is in development — the platform abstraction layer exists (`compat/`) but is not yet fully tested. If you run into issues, [open an issue](https://github.com/buhhrad/whisper-typer/issues).
 

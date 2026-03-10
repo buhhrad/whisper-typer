@@ -190,6 +190,117 @@ def _create_launcher() -> None:
         _step_ok("Created whisper-typer.sh")
 
 
+def _generate_icon() -> str | None:
+    """Generate a whisper-typer.ico file using PIL. Returns path or None."""
+    install_dir = os.path.dirname(os.path.abspath(__file__))
+    ico_path = os.path.join(install_dir, "whisper-typer.ico")
+    if os.path.exists(ico_path):
+        return ico_path
+    try:
+        from PIL import Image, ImageDraw
+        # Dark circle with amber mic — matches the app theme
+        sizes = [16, 32, 48, 64, 128, 256]
+        images = []
+        for sz in sizes:
+            img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            p = sz / 64  # scale factor
+            # Background circle
+            draw.ellipse([int(4*p), int(4*p), int(60*p), int(60*p)], fill="#1a1a2a")
+            draw.ellipse([int(4*p), int(4*p), int(60*p), int(60*p)], outline="#3a3a50", width=max(1, int(2*p)))
+            # Mic capsule
+            lw = max(1, int(2*p))
+            draw.rounded_rectangle([int(24*p), int(14*p), int(40*p), int(38*p)],
+                                   radius=int(6*p), outline="#e0a820", width=lw)
+            # Mic arc
+            draw.arc([int(20*p), int(28*p), int(44*p), int(50*p)],
+                     start=180, end=0, fill="#e0a820", width=lw)
+            # Mic stem
+            draw.line([int(32*p), int(50*p), int(32*p), int(56*p)], fill="#e0a820", width=lw)
+            draw.line([int(24*p), int(56*p), int(40*p), int(56*p)], fill="#e0a820", width=lw)
+            images.append(img)
+        images[0].save(ico_path, format="ICO", sizes=[(s, s) for s in sizes],
+                       append_images=images[1:])
+        return ico_path
+    except Exception:
+        return None
+
+
+def _prompt_shortcut() -> None:
+    """Ask the user if they want a desktop shortcut."""
+    try:
+        choice = input(f"\n  {_styled('Create a desktop shortcut? [y/N]:', _GRAY)} ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return
+    if choice not in ("y", "yes"):
+        return
+
+    install_dir = os.path.dirname(os.path.abspath(__file__))
+    ico_path = _generate_icon()
+
+    if sys.platform == "win32":
+        desktop = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
+        if not os.path.isdir(desktop):
+            _step_fail("Desktop folder not found")
+            return
+        # Point shortcut directly to pythonw.exe — no .bat, no console
+        pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        if not os.path.exists(pythonw):
+            pythonw = sys.executable  # fallback to python.exe
+        script_path = os.path.join(install_dir, "whisper_typer.py")
+        shortcut_path = os.path.join(desktop, "Whisper Typer.lnk")
+        icon_arg = f'$s.IconLocation = "{ico_path}"; ' if ico_path else ""
+        ps_cmd = (
+            f'$ws = New-Object -ComObject WScript.Shell; '
+            f'$s = $ws.CreateShortcut("{shortcut_path}"); '
+            f'$s.TargetPath = "{pythonw}"; '
+            f'$s.Arguments = """{script_path}"""; '
+            f'$s.WorkingDirectory = "{install_dir}"; '
+            f'$s.Description = "Whisper Typer — local voice typing"; '
+            f'{icon_arg}'
+            f'$s.Save()'
+        )
+        try:
+            subprocess.run(
+                ["powershell", "-Command", ps_cmd],
+                capture_output=True, timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            _step_ok("Desktop shortcut created", "Whisper Typer")
+        except Exception:
+            _step_fail("Could not create shortcut")
+    elif sys.platform == "darwin":
+        desktop = os.path.expanduser("~/Desktop")
+        sh_path = os.path.join(install_dir, "whisper-typer.sh")
+        try:
+            subprocess.run(
+                ["ln", "-sf", sh_path, os.path.join(desktop, "Whisper Typer")],
+                timeout=5,
+            )
+            _step_ok("Desktop shortcut created")
+        except Exception:
+            _step_fail("Could not create shortcut")
+    else:
+        desktop = os.path.expanduser("~/Desktop")
+        sh_path = os.path.join(install_dir, "whisper-typer.sh")
+        desktop_file = os.path.join(desktop, "Whisper Typer.desktop")
+        icon_line = f"Icon={ico_path}\n" if ico_path else ""
+        try:
+            with open(desktop_file, "w") as f:
+                f.write("[Desktop Entry]\n")
+                f.write("Type=Application\n")
+                f.write("Name=Whisper Typer\n")
+                f.write("Comment=Local voice typing\n")
+                f.write(f"Exec={sh_path}\n")
+                f.write(f"Path={install_dir}\n")
+                f.write("Terminal=false\n")
+                f.write(icon_line)
+            os.chmod(desktop_file, 0o755)
+            _step_ok("Desktop shortcut created")
+        except Exception:
+            _step_fail("Could not create shortcut")
+
+
 # ── Install ───────────────────────────────────────────────────────────
 
 def _install_package() -> bool:
@@ -318,21 +429,17 @@ def main():
             else:
                 _step_info(f"Download failed — model will download on first launch")
 
-    # ── Create launcher
+    # ── Create launcher + shortcut
     _create_launcher()
+    _prompt_shortcut()
 
     # ── Done
     print()
     _section("Ready")
     print()
-    if sys.platform == "win32":
-        print(f"  {_styled('Double-click or run:', _GRAY)}")
-        print(f"  {_styled('whisper-typer.bat', _AMBER, _BOLD)}")
-    else:
-        print(f"  {_styled('Run:', _GRAY)}")
-        print(f"  {_styled('./whisper-typer.sh', _AMBER, _BOLD)}")
-    print()
-    print(f"  {_styled('Or:', _DIM)} python whisper_typer.py")
+    print(f"  {_styled('Launch Whisper Typer from:', _GRAY)}")
+    print(f"  {_styled('• Desktop shortcut', _WHITE)}  {_styled('(if created above)', _DIM)}")
+    print(f"  {_styled('• python whisper_typer.py', _WHITE)}  {_styled('(from this folder)', _DIM)}")
     print()
     if not has_cuda:
         print(f"  {_styled('Tip: For faster transcription, use a CUDA GPU', _DIM)}")
