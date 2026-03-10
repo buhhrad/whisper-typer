@@ -293,7 +293,7 @@ def main():
     _section("Ready")
     print()
     print(f"  {_styled('Run from anywhere:', _GRAY)}")
-    print(f"  {_styled('$ python -m whisper_typer', _AMBER, _BOLD)}")
+    print(f"  {_styled('python -m whisper_typer', _AMBER, _BOLD)}")
     print()
     if not has_cuda:
         print(f"  {_styled('Tip: For faster transcription, use a CUDA GPU', _DIM)}")
