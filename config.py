@@ -23,9 +23,6 @@ WHISPER_COMPUTE = "float16"  # int8 (fast CPU), float16 (GPU), float32 (fallback
 WHISPER_BEAM_SIZE = 1     # 1 = greedy (fastest), 5 = beam search (better quality)
 WHISPER_LANGUAGE = "en"   # None for auto-detect
 
-# ── Hotkey ────────────────────────────────────────────────────────────
-HOTKEY_COMBO = {"ctrl_l", "shift", "space"}  # Ctrl+Shift+Space for PTT
-
 # ── GUI ───────────────────────────────────────────────────────────────
 WINDOW_WIDTH = 300
 WINDOW_HEIGHT = 50

@@ -117,6 +117,13 @@ class PlatformBackend(ABC):
         """Return (x, y, width, height) of the full virtual desktop."""
         ...
 
+    def get_monitor_rect_for_window(self, handle: Any) -> tuple[int, int, int, int] | None:
+        """Return (x, y, width, height) of the monitor containing *handle*.
+
+        Falls back to virtual screen bounds if not implemented.
+        """
+        return None
+
     # ── window snapping ─────────────────────────────────────────────
     def get_tk_hwnd(self, tk_root) -> Any | None:
         """Extract a native window handle from a tkinter root."""

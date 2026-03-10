@@ -44,7 +44,11 @@ _KEY_NAMES = {
 }
 
 # Legacy name mapping (old config format → new)
-_LEGACY_MAP = {"ctrl_l": "ctrl"}
+_LEGACY_MAP = {
+    "ctrl_l": "ctrl", "ctrl_r": "ctrl",
+    "shift_l": "shift", "shift_r": "shift",
+    "alt_l": "alt", "alt_r": "alt",
+}
 
 
 def _normalize_combo(combo) -> set[str] | None:
@@ -60,6 +64,7 @@ class HotkeyListener:
     PTT events: ("hotkey_press",) / ("hotkey_release",)
     VAD events: ("vad_toggle",)
     Mute events: ("mute_toggle",)
+    Terminal cycle events: ("terminal_cycle",)
     """
 
     def __init__(
@@ -68,6 +73,7 @@ class HotkeyListener:
         ptt_combo: list[str] | set[str] | None = None,
         vad_combo: list[str] | set[str] | None = None,
         mute_combo: list[str] | set[str] | None = None,
+        terminal_combo: list[str] | set[str] | None = None,
     ):
         self._queue = event_queue
         self._pressed: set[str] = set()
@@ -86,20 +92,27 @@ class HotkeyListener:
         self._mute_combo = _normalize_combo(mute_combo)
         self._mute_fired = False
 
+        # Terminal cycle combo state
+        self._terminal_combo = _normalize_combo(terminal_combo)
+        self._terminal_fired = False
+
     def set_combos(
         self,
         ptt_combo: list[str] | set[str] | None = None,
         vad_combo: list[str] | set[str] | None = None,
         mute_combo: list[str] | set[str] | None = None,
+        terminal_combo: list[str] | set[str] | None = None,
     ) -> None:
         """Update combos at runtime (no restart needed)."""
         self._ptt_combo = _normalize_combo(ptt_combo)
         self._vad_combo = _normalize_combo(vad_combo)
         self._mute_combo = _normalize_combo(mute_combo)
+        self._terminal_combo = _normalize_combo(terminal_combo)
         # Reset state
         self._ptt_active = False
         self._vad_fired = False
         self._mute_fired = False
+        self._terminal_fired = False
 
     def start(self) -> None:
         """Start the hotkey listener in a daemon thread."""
@@ -172,6 +185,12 @@ class HotkeyListener:
                 self._mute_fired = True
                 self._queue.put(("mute_toggle",))
 
+        # ── Terminal cycle combo (toggle) ──
+        if self._terminal_combo and not self._terminal_fired:
+            if self._terminal_combo.issubset(self._pressed):
+                self._terminal_fired = True
+                self._queue.put(("terminal_cycle",))
+
     def _on_release(self, key) -> None:
         name = self._normalize(key)
         if name is None:
@@ -189,5 +208,9 @@ class HotkeyListener:
         # Mute — allow re-fire after any combo key is released
         if self._mute_combo and self._mute_fired and name in self._mute_combo:
             self._mute_fired = False
+
+        # Terminal cycle — allow re-fire after any combo key is released
+        if self._terminal_combo and self._terminal_fired and name in self._terminal_combo:
+            self._terminal_fired = False
 
         self._pressed.discard(name)

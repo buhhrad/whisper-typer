@@ -551,6 +551,7 @@ class WhisperTyper:
                     ptt_combo=self._settings.get("ptt_hotkey"),
                     vad_combo=self._settings.get("vad_hotkey"),
                     mute_combo=self._settings.get("mute_hotkey"),
+                    terminal_combo=self._settings.get("terminal_hotkey"),
                 )
 
         popup.bind("<KeyPress>", _on_key)
@@ -566,6 +567,7 @@ class WhisperTyper:
                 ptt_combo=self._settings.get("ptt_hotkey"),
                 vad_combo=self._settings.get("vad_hotkey"),
                 mute_combo=self._settings.get("mute_hotkey"),
+                terminal_combo=self._settings.get("terminal_hotkey"),
             )
 
     def _on_whisper_setting_changed(self, key: str, value: str, restart_label: tk.Label) -> None:
@@ -691,8 +693,8 @@ class WhisperTyper:
         gpu_row = tk.Frame(p, bg=_PANEL_BG)
         gpu_row.pack(fill=tk.X, pady=2)
         tk.Label(
-            gpu_row, text="Compute", font=_FONT_LABEL,
-            fg=_FG_DIM, bg=_PANEL_BG, width=8, anchor="w",
+            gpu_row, text="RUN", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=5, anchor="w",
         ).pack(side=tk.LEFT)
         DropdownButton(
             gpu_row, textvariable=device_var, values=_DEVICE_OPTIONS,
@@ -826,6 +828,35 @@ class WhisperTyper:
         mute_clear.bind("<Enter>", lambda e: mute_clear.configure(fg=COLOR_RED))
         mute_clear.bind("<Leave>", lambda e: mute_clear.configure(fg=_FG_DIM))
 
+        # Terminal cycle keybind
+        term_row = tk.Frame(p, bg=_PANEL_BG, cursor="arrow")
+        term_row.pack(fill=tk.X, pady=2)
+        tk.Label(
+            term_row, text="SWAP", font=_FONT_LABEL,
+            fg=_FG_DIM, bg=_PANEL_BG, width=4, anchor="w",
+        ).pack(side=tk.LEFT)
+        term_combo = self._settings.get("terminal_hotkey")
+        term_label = tk.Label(
+            term_row, text=self._format_hotkey(term_combo),
+            font=_FONT_MONO, fg=_FG if term_combo else _FG_DIM,
+            bg=_KB_BG, padx=6, pady=2, anchor="w",
+        )
+        term_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        term_clear = tk.Label(
+            term_row, text="\u00d7", font=_FONT_BODY,
+            fg=_FG_DIM, bg=_PANEL_BG, padx=4, cursor="arrow",
+        )
+        term_clear.pack(side=tk.RIGHT)
+        _Tooltip(term_label, "Switch target terminal")
+        term_label.bind("<ButtonRelease-1>",
+                       lambda e: self._start_keybind_capture(term_label, "terminal_hotkey"))
+        term_clear.bind("<ButtonRelease-1>",
+                       lambda e: self._clear_keybind(term_label, "terminal_hotkey"))
+        term_label.bind("<Enter>", lambda e: term_label.configure(bg=_KB_HOVER))
+        term_label.bind("<Leave>", lambda e: term_label.configure(bg=_KB_BG))
+        term_clear.bind("<Enter>", lambda e: term_clear.configure(fg=COLOR_RED))
+        term_clear.bind("<Leave>", lambda e: term_clear.configure(fg=_FG_DIM))
+
         # ── Toggles section ──
         tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
 
@@ -917,23 +948,12 @@ class WhisperTyper:
                 refresh_btn.bind("<Leave>", lambda e: refresh_btn.configure(fg=_FG_DIM))
                 refresh_btn.bind("<ButtonRelease-1>", lambda e: self._refresh_settings())
 
-        # ── Restart button ──
-        tk.Frame(p, bg="#2a2a3a", height=1).pack(fill=tk.X, pady=(8, 5))
-        restart_btn = tk.Label(
-            p, text="\u27F3", font=_FONT_BODY,
-            fg=_FG_DIM, bg=_PANEL_BG, cursor="arrow", anchor="center",
-        )
-        restart_btn.pack(fill=tk.X, pady=2)
-        _Tooltip(restart_btn, "Restart app")
-        restart_btn.bind("<Enter>", lambda e: restart_btn.configure(fg=COLOR_AMBER))
-        restart_btn.bind("<Leave>", lambda e: restart_btn.configure(fg=_FG_DIM))
-        restart_btn.bind("<ButtonRelease-1>", lambda e: self._restart())
-
         # Position above or below — dynamically choose based on screen space
         self._settings_popup.update_idletasks()
         content.update_idletasks()
         popup_w = max(self.root.winfo_width(), 220)
-        x = self.root.winfo_x()
+        widget_cx = self.root.winfo_x() + self.root.winfo_width() // 2
+        x = widget_cx - popup_w // 2
         h = content.winfo_reqheight() + 2 * _INSET
         bar_bottom = self.root.winfo_y() + self.root.winfo_height()
         screen_h = self.root.winfo_screenheight()
@@ -1010,27 +1030,109 @@ class WhisperTyper:
         if not terminals:
             return []
 
-        # Deduplicate identical titles by appending position or index
+        result: list[tuple[int, str]] = []
+        # Deduplicate identical titles
         title_counts: dict[str, int] = {}
         for _, title in terminals:
             title_counts[title] = title_counts.get(title, 0) + 1
-
-        result: list[tuple[int, str]] = []
         seen: dict[str, int] = {}
+
         for hwnd, title in terminals:
+            pos = self._describe_window_position(hwnd)
             if title_counts[title] > 1:
                 idx = seen.get(title, 0) + 1
                 seen[title] = idx
-                # Try to add screen position for differentiation
-                rect = self._platform.get_window_rect(hwnd)
-                if rect:
-                    label = f"{title} #{idx} ({rect[0]},{rect[1]})"
-                else:
-                    label = f"{title} #{idx}"
+                label = f"{title} #{idx}" + (f" — {pos}" if pos else "")
             else:
-                label = title
+                label = title + (f" — {pos}" if pos else "")
             result.append((hwnd, label))
         return result
+
+    def _describe_window_position(self, hwnd) -> str | None:
+        """Map a window's screen position to a human-readable label."""
+        rect = self._platform.get_window_rect(hwnd)
+        if not rect:
+            return None
+        left, top, right, bottom = rect
+        win_cx = (left + right) / 2
+        win_cy = (top + bottom) / 2
+
+        # Get the monitor this window is on (per-monitor, not virtual screen)
+        mon = self._platform.get_monitor_rect_for_window(hwnd)
+        if mon:
+            sx, sy, sw, sh = mon
+        else:
+            sx, sy, sw, sh = self._platform.get_virtual_screen_bounds()
+        # Normalize to 0..1 within the monitor
+        nx = (win_cx - sx) / sw if sw else 0.5
+        ny = (win_cy - sy) / sh if sh else 0.5
+
+        # Determine horizontal zone
+        if nx < 0.33:
+            h = "left"
+        elif nx > 0.67:
+            h = "right"
+        else:
+            h = "center"
+
+        # Determine vertical zone
+        if ny < 0.33:
+            v = "top"
+        elif ny > 0.67:
+            v = "bottom"
+        else:
+            v = ""
+
+        # Build label
+        if v and h == "center":
+            return v          # "top" or "bottom"
+        if not v and h == "center":
+            return "center"
+        if v:
+            return f"{v}-{h}"  # "top-left", "bottom-right"
+        return h               # "left" or "right"
+
+    def _cycle_terminal(self) -> None:
+        """Cycle to the next available terminal. Shows brief status feedback."""
+        terminals = self._get_all_terminals()
+        if len(terminals) < 2:
+            return  # nothing to cycle through
+
+        # Find current index
+        current_idx = -1
+        for i, (hwnd, _) in enumerate(terminals):
+            if hwnd == self._terminal_target_hwnd:
+                current_idx = i
+                break
+
+        # Move to next (wraps around)
+        next_idx = (current_idx + 1) % len(terminals)
+        next_hwnd, next_label = terminals[next_idx]
+        self._terminal_target_hwnd = next_hwnd
+
+        # Re-snap if currently snapped
+        if self._snap_hwnd:
+            if self._snap_id:
+                self.root.after_cancel(self._snap_id)
+                self._snap_id = None
+            self._snap_hwnd = next_hwnd
+            self._snap_tk_hwnd = self._platform.get_tk_hwnd(self.root)
+            self._snap_last_x = -1
+            self._snap_last_y = -1
+            self._snap_poll()
+
+        # Show brief feedback in status bar
+        short = next_label if len(next_label) <= 30 else next_label[:27] + "..."
+        self._status.configure(text=f"\u2192 {short}", fg=COLOR_AMBER)
+        self.root.after(1500, lambda: (
+            self._status.configure(text="Ready", fg=COLOR_TEXT)
+            if self._state == STATE_IDLE else None
+        ))
+
+        # Reposition settings popup if open
+        if self._settings_popup and self._settings_popup.winfo_exists():
+            self._close_settings()
+            self.root.after(100, self._open_settings)
 
     def _refresh_settings(self) -> None:
         """Close and reopen settings to refresh the terminal list."""
@@ -1042,15 +1144,18 @@ class WhisperTyper:
         self._terminal_target_hwnd = hwnd
         # If already snapped, re-snap to the new target
         if self._snap_hwnd:
-            self._unsnap()
+            # Cancel current snap poll without full unsnap (avoids showing grips)
+            if self._snap_id:
+                self.root.after_cancel(self._snap_id)
+                self._snap_id = None
             self._snap_hwnd = hwnd
             self._snap_tk_hwnd = self._platform.get_tk_hwnd(self.root)
-            if not self._transparent_mode:
-                self._set_transparency(True)
+            self._snap_last_x = -1
+            self._snap_last_y = -1
             self._snap_poll()
         # Refresh the settings panel to show the new selection
         self._close_settings()
-        self.root.after(50, self._open_settings)
+        self.root.after(100, self._open_settings)
 
     def _toggle_snap(self) -> None:
         if self._snap_hwnd:
@@ -1206,9 +1311,10 @@ class WhisperTyper:
         ptt = self._settings.get("ptt_hotkey") or ["ctrl", "shift", "space"]
         vad = self._settings.get("vad_hotkey")
         mute = self._settings.get("mute_hotkey") or ["ctrl", "shift", "m"]
+        term = self._settings.get("terminal_hotkey") or ["ctrl", "tab"]
         self._hotkey_listener = HotkeyListener(
             self._event_queue, ptt_combo=ptt, vad_combo=vad,
-            mute_combo=mute,
+            mute_combo=mute, terminal_combo=term,
         )
         self._hotkey_listener.start()
 
@@ -1239,9 +1345,13 @@ class WhisperTyper:
 
         # Don't auto-restore VAD — user must explicitly enable it each session
 
-        # Auto-snap to terminal if one is available (only on supported platforms)
-        hwnd = self._find_terminal_hwnd() if self._platform.supports_window_snapping else None
+        # Auto-detect target terminal on startup
+        hwnd = self._find_terminal_hwnd()
         if hwnd:
+            self._terminal_target_hwnd = hwnd
+
+        # Auto-snap to terminal if one is available (only on supported platforms)
+        if hwnd and self._platform.supports_window_snapping:
             self._snap_hwnd = hwnd
             self._snap_tk_hwnd = self._platform.get_tk_hwnd(self.root)
             # Hide grips when snapped and resize
@@ -1384,9 +1494,47 @@ class WhisperTyper:
         user_settings.save(self._settings)
 
     def _on_close(self) -> None:
-        """Clean shutdown."""
-        self._unsnap()
+        """Animate collapse then clean shutdown."""
+        if hasattr(self, "_closing") and self._closing:
+            return  # already closing
+        self._closing = True
+        self._close_settings()
+        # Capture starting geometry — right edge stays fixed
+        self._close_w = self.root.winfo_width()
+        self._close_h = self.root.winfo_height()
+        self._close_right = self.root.winfo_x() + self._close_w
+        self._close_y = self.root.winfo_y()
+        self._close_frame = 0
+        self._close_total = 12  # ~360ms at 30ms per frame
+        # Clear rounded corners so they don't clip during animation
+        self._platform.set_rounded_corners(self.root, radius=10, enable=False)
+        self._animate_close()
+
+    def _animate_close(self) -> None:
+        """Collapse left edge into right edge (toward close button)."""
+        self._close_frame += 1
+        t = self._close_frame / self._close_total
+        t = t * t  # ease-in (accelerates)
+        w = max(int(self._close_w * (1.0 - t)), 1)
+        x = self._close_right - w  # right edge stays fixed
+        try:
+            self.root.geometry(f"{w}x{self._close_h}+{x}+{self._close_y}")
+            self.root.attributes("-alpha", max(0.0, 1.0 - t))
+        except Exception:
+            pass
+        if self._close_frame < self._close_total:
+            self.root.after(30, self._animate_close)
+        else:
+            self._finish_close()
+
+    def _finish_close(self) -> None:
+        """Actual cleanup after animation."""
         self._save_settings()
+        if self._snap_hwnd:
+            if self._snap_id:
+                self.root.after_cancel(self._snap_id)
+                self._snap_id = None
+            self._snap_hwnd = None
         if hasattr(self, "_tray_icon") and self._tray_icon:
             try:
                 self._tray_icon.stop()
@@ -1463,6 +1611,9 @@ class WhisperTyper:
                 else:
                     self._status.configure(text="Listening (VAD)\u2026", fg=COLOR_TEXT)
 
+        elif kind == "terminal_cycle":
+            self._cycle_terminal()
+
         elif kind == "vad_speech_start":
             if self._muted:
                 pass  # ignore speech when muted
@@ -1523,10 +1674,24 @@ class WhisperTyper:
                     target=self._do_type, args=(text, route), daemon=True
                 ).start()
             else:
-                # No speech detected — brief visual feedback before returning to idle
+                # No speech detected — go idle immediately, show amber flash
+                self._state = STATE_IDLE
+                self._vad_cooldown_until = time.time() + 1.0
+                with self._pending_audio_lock:
+                    self._pending_audio.clear()
+                if self._recorder and self._recorder.vad_active:
+                    self._vad_btn.set_processing(False)
+                # Visual-only amber flash (state is already IDLE)
                 self._mic_btn.set_state("idle", COLOR_AMBER)
                 self._status.configure(text="No speech detected", fg=COLOR_AMBER)
-                self.root.after(800, self._process_next_or_idle)
+                self._cancel_elapsed_timer(hide_badge=True)
+                self.root.after(800, lambda: (
+                    self._mic_btn.set_state("idle", COLOR_TEXT_DIM),
+                    self._status.configure(
+                        text="Listening (VAD)\u2026" if (self._recorder and self._recorder.vad_active)
+                        else "Ready", fg=COLOR_TEXT,
+                    ),
+                ))
 
         elif kind == "typing_done":
             self._process_next_or_idle()
@@ -1596,7 +1761,7 @@ def main():
     parser.add_argument(
         "--model",
         default=None,
-        help="Whisper model size (tiny/base/small/medium/large-v3)",
+        help="Whisper model size (tiny/base/small/medium/large-v3-turbo/large-v3)",
     )
     parser.add_argument(
         "--device",

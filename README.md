@@ -82,7 +82,7 @@ A small floating widget that transcribes your speech locally using [faster-whisp
 - **Hands-free VAD** — [Silero VAD](https://github.com/snakers4/silero-vad) detects speech automatically. Just talk and it types.
 - **Queued transcription** — Keeps recording while transcribing. No speech is ever lost.
 - **Lightweight** — Pure Python, no Electron. Starts in seconds.
-- **Configurable** — 6 Whisper models, custom hotkeys, multiple output routes, mic selection
+- **Configurable** — 6 Whisper models, custom hotkeys, multiple output routes, mic selection, terminal targeting
 
 ---
 
@@ -94,6 +94,7 @@ A small floating widget that transcribes your speech locally using [faster-whisp
 | **Push-to-talk** | Hold `Ctrl+Shift+Space`, release to transcribe |
 | **Always-on VAD** | Click the bars icon — speech is detected automatically |
 | **Mute (VAD)** | `Ctrl+Shift+M` while VAD is active |
+| **Switch terminal** | `Ctrl+Tab` to cycle target terminal |
 | **Settings** | Click the gear icon |
 | **Snap to terminal** | Settings → Snap to Terminal |
 | **Select terminal** | Settings → Target terminal (when multiple are open) |
@@ -112,12 +113,18 @@ A small floating widget that transcribes your speech locally using [faster-whisp
 - **Auto Paste** — Pastes into the currently focused text field
 - **Clipboard** — Copies to clipboard for manual pasting
 
+### Terminal
+- **Terminal Selector** — Choose which terminal to target when multiple are open
+- **Smart Labels** — Each terminal shows its screen position (top-left, center, right, etc.)
+- **Cycle Hotkey** — `Ctrl+Tab` to switch target terminal without opening settings (configurable)
+- **Auto-detect** — Automatically finds and targets a terminal on startup
+
 ### Interface
 - **Always-on-Top** — Stays visible while you work in other apps
 - **System Tray** — Minimizes to tray, stays out of the way
 - **Duration Badge** — Shows recording time with a smooth animated pill
 - **Amber Flash** — Widget flashes amber when no speech was detected
-- **Terminal Selector** — Choose which terminal to target when multiple are open
+- **Close Animation** — Smooth collapse animation on exit
 - **Fully Configurable** — Model, device, hotkeys, mic, output routing — all from the settings popup
 
 ---
@@ -206,7 +213,7 @@ Microphone → sounddevice (16kHz)
 | `audio.py` | Mic capture, VAD processing, recording controller |
 | `transcriber.py` | faster-whisper transcription wrapper |
 | `typer.py` | Text output routing (clipboard, paste, auto-terminal) |
-| `hotkeys.py` | Global hotkey listener (push-to-talk, VAD toggle, mute) |
+| `hotkeys.py` | Global hotkey listener (push-to-talk, VAD toggle, mute, terminal cycle) |
 | `config.py` | Constants and configuration |
 | `settings.py` | User settings persistence (JSON) |
 | `compat/` | Platform abstraction layer (Windows, macOS, Linux) |

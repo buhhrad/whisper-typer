@@ -323,6 +323,31 @@ class WindowsBackend(PlatformBackend):
         h = user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
         return (x, y, w, h)
 
+    def get_monitor_rect_for_window(self, handle: Any) -> tuple[int, int, int, int] | None:
+        """Return (x, y, width, height) of the monitor containing *handle*."""
+        try:
+            MONITOR_DEFAULTTONEAREST = 2
+            hmon = user32.MonitorFromWindow(int(handle), MONITOR_DEFAULTTONEAREST)
+            if not hmon:
+                return None
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.wintypes.DWORD),
+                    ("rcMonitor", _RECT),
+                    ("rcWork", _RECT),
+                    ("dwFlags", ctypes.wintypes.DWORD),
+                ]
+
+            info = MONITORINFO()
+            info.cbSize = ctypes.sizeof(MONITORINFO)
+            if not user32.GetMonitorInfoW(hmon, ctypes.byref(info)):
+                return None
+            r = info.rcWork  # work area (excludes taskbar)
+            return (r.left, r.top, r.right - r.left, r.bottom - r.top)
+        except Exception:
+            return None
+
     # ── window snapping ──────────────────────────────────────────────
 
     def get_tk_hwnd(self, tk_root) -> int | None:

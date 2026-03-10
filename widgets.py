@@ -398,6 +398,7 @@ class MicIcon(tk.Canvas):
         self._muted = False
         self._pulse_id: str | None = None
         self._pulse_frame = 0
+        self._fade_to_idle_step = 0
         self._photo = None  # PIL anti-aliased render reference
         self._mic_base_img: Image.Image | None = None  # cached for brightness pulse
         self._mic_base_color: str | None = None
