@@ -29,7 +29,7 @@ jobs:
             pyinstaller_args: ""
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -50,9 +50,14 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade pip
-          # Install CPU-only torch first (much smaller than default CUDA bundle)
-          # Users who want CUDA can use the developer setup instead
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # Windows: install CUDA-enabled torch for GPU transcription support
+            pip install torch --index-url https://download.pytorch.org/whl/cu126
+          else
+            # macOS: no NVIDIA GPUs. Linux: CPU keeps under GitHub's 2GB asset limit.
+            # Linux GPU users can use the developer setup with CUDA torch.
+            pip install torch --index-url https://download.pytorch.org/whl/cpu
+          fi
           pip install -r requirements.txt
           pip install pyinstaller
 
