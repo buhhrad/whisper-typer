@@ -265,6 +265,18 @@ class WhisperTyper:
         ))
         self._gear_btn.bind("<ButtonPress-1>", lambda e: self._toggle_settings())
 
+        # File upload button (canvas icon) — between gear and VAD
+        self._file_popup = None
+        self._file_btn = tk.Canvas(
+            row, width=_ICON_SIZE, height=_ICON_SIZE,
+            bg=_BTN_BG, highlightthickness=0,
+        )
+        self._file_btn.pack(side=tk.RIGHT, padx=2)
+        self._draw_file_icon(COLOR_TEXT_DIM)
+        self._file_btn.bind("<Enter>", lambda e: (self._draw_file_icon(COLOR_AMBER), self._file_btn.configure(cursor="arrow")))
+        self._file_btn.bind("<Leave>", lambda e: (self._draw_file_icon(COLOR_TEXT_DIM), self._file_btn.configure(cursor="")))
+        self._file_btn.bind("<ButtonPress-1>", lambda e: self._on_file_upload())
+
         # VAD toggle — hidden during loading, shown when model ready
         self._vad_btn = VadToggle(
             row, command=self._on_vad_toggle, bg=_BTN_BG,
@@ -294,8 +306,8 @@ class WhisperTyper:
         # Track widgets for transparency toggle
         self._row_bg_widgets = [row]
         self._btn_bg_widgets = [
-            self._mic_btn, self._close_btn, self._gear_btn, self._vad_btn,
-            self._loading_bar, self._duration_badge,
+            self._mic_btn, self._close_btn, self._gear_btn, self._file_btn,
+            self._vad_btn, self._loading_bar, self._duration_badge,
         ] + self._grips
 
         # ── Dropdown variables (shown in settings popup) ─────────
@@ -495,6 +507,36 @@ class WhisperTyper:
         c.delete("all")
         cx, cy = 13, 13
         c.create_text(cx, cy, text="\u2699", font=(_platform.get_ui_font(), 11), fill=color)
+
+    def _draw_file_icon(self, color):
+        """Draw file/document icon."""
+        c = self._file_btn
+        if _HAS_PIL:
+            from widgets import _aa_icon
+            def _draw(d, S):
+                # Document with folded corner
+                x0, y0 = 8 * S, 4 * S
+                x1, y1 = 18 * S, 22 * S
+                fold = 5 * S
+                w = max(1, round(1.5 * S))
+                # Main outline (without top-right corner)
+                points = [
+                    (x0, y0), (x1 - fold, y0), (x1, y0 + fold),
+                    (x1, y1), (x0, y1), (x0, y0),
+                ]
+                d.line(points, fill=color, width=w, joint="curve")
+                # Fold line
+                d.line([(x1 - fold, y0), (x1 - fold, y0 + fold), (x1, y0 + fold)],
+                       fill=color, width=w, joint="curve")
+                # Text lines
+                lw = max(1, round(1.2 * S))
+                for ly in (11 * S, 14 * S, 17 * S):
+                    d.line([(10 * S, ly), (16 * S, ly)], fill=color, width=lw)
+            _aa_icon(c, 26, 26, _draw)
+        else:
+            c.delete("all")
+            cx, cy = 13, 13
+            c.create_text(cx, cy, text="\U0001F4C4", font=(_platform.get_ui_font(), 10), fill=color)
 
     def _toggle_settings(self) -> None:
         if self._settings_popup and self._settings_popup.winfo_exists():
@@ -1426,6 +1468,155 @@ class WhisperTyper:
                 self._vad_btn.set_processing(False)
             self._vad_cooldown_until = time.time() + 0.3
             self.root.after(200, lambda: self._set_state(STATE_IDLE))
+
+    # ── File upload ────────────────────────────────────────────────
+
+    def _on_file_upload(self) -> None:
+        """Open file dialog to select audio file for transcription."""
+        if not self._model_ready:
+            return
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(
+            title="Select audio file to transcribe",
+            filetypes=[
+                ("Audio files", "*.wav *.mp3 *.m4a *.flac *.ogg *.wma *.aac *.opus *.webm"),
+                ("Video files", "*.mp4 *.mkv *.avi *.mov *.wmv"),
+                ("All files", "*.*"),
+            ],
+        )
+        if not path:
+            return
+        self._close_settings()
+        self._show_file_transcription(path)
+
+    def _show_file_transcription(self, path: str) -> None:
+        """Show a popup window and transcribe the file in background."""
+        _PANEL_BG = COLOR_TERMINAL_BG
+        _FG = "#e8e8f0"
+        _FG_DIM = "#8888a0"
+        _FONT = _platform.get_mono_font()
+
+        popup = tk.Toplevel(self.root)
+        popup.title("File Transcription")
+        popup.configure(bg=_PANEL_BG)
+        popup.attributes("-topmost", True)
+        popup.geometry("560x420")
+        popup.minsize(400, 300)
+
+        # Header with filename
+        filename = os.path.basename(path)
+        header = tk.Frame(popup, bg=_PANEL_BG)
+        header.pack(fill=tk.X, padx=12, pady=(10, 4))
+        tk.Label(
+            header, text="FILE", font=(_FONT, 7, "bold"),
+            fg=_FG_DIM, bg=_PANEL_BG, anchor="w",
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            header, text=filename, font=(_FONT, 9),
+            fg=COLOR_AMBER, bg=_PANEL_BG, anchor="w",
+        ).pack(side=tk.LEFT, padx=(8, 0))
+
+        # Status line
+        status_label = tk.Label(
+            popup, text="Transcribing...", font=(_FONT, 8),
+            fg=COLOR_BLUE, bg=_PANEL_BG, anchor="w",
+        )
+        status_label.pack(fill=tk.X, padx=12, pady=(0, 6))
+
+        # Text area with scrollbar
+        text_frame = tk.Frame(popup, bg="#0a0a14")
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 8))
+
+        scrollbar = tk.Scrollbar(text_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text_area = tk.Text(
+            text_frame,
+            bg="#0a0a14", fg=_FG,
+            font=(_FONT, 10),
+            wrap=tk.WORD,
+            insertbackground=_FG,
+            selectbackground="#2a2a50",
+            selectforeground=_FG,
+            relief=tk.FLAT,
+            padx=10, pady=8,
+            yscrollcommand=scrollbar.set,
+        )
+        text_area.pack(fill=tk.BOTH, expand=True)
+        scrollbar.config(command=text_area.yview)
+
+        text_area.insert("1.0", "Transcribing audio file...")
+        text_area.configure(state=tk.DISABLED)
+
+        # Button row
+        btn_frame = tk.Frame(popup, bg=_PANEL_BG)
+        btn_frame.pack(fill=tk.X, padx=12, pady=(0, 10))
+
+        _BTN_BG = "#1a1a2a"
+        _BTN_HOVER = "#2a2a40"
+
+        copy_btn = tk.Label(
+            btn_frame, text="  Copy to Clipboard  ", font=(_FONT, 8, "bold"),
+            fg=COLOR_AMBER, bg=_BTN_BG, padx=10, pady=4, cursor="arrow",
+        )
+        copy_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        def _copy():
+            content = text_area.get("1.0", tk.END).strip()
+            if content and content != "Transcribing audio file...":
+                popup.clipboard_clear()
+                popup.clipboard_append(content)
+                copy_btn.configure(text="  Copied!  ", fg=COLOR_GREEN)
+                popup.after(1500, lambda: copy_btn.configure(
+                    text="  Copy to Clipboard  ", fg=COLOR_AMBER))
+
+        copy_btn.bind("<ButtonRelease-1>", lambda e: _copy())
+        copy_btn.bind("<Enter>", lambda e: copy_btn.configure(bg=_BTN_HOVER))
+        copy_btn.bind("<Leave>", lambda e: copy_btn.configure(bg=_BTN_BG))
+
+        close_btn = tk.Label(
+            btn_frame, text="  Close  ", font=(_FONT, 8),
+            fg=_FG_DIM, bg=_BTN_BG, padx=10, pady=4, cursor="arrow",
+        )
+        close_btn.pack(side=tk.RIGHT)
+        close_btn.bind("<ButtonRelease-1>", lambda e: popup.destroy())
+        close_btn.bind("<Enter>", lambda e: close_btn.configure(bg=_BTN_HOVER))
+        close_btn.bind("<Leave>", lambda e: close_btn.configure(bg=_BTN_BG))
+
+        # Transcribe in background
+        def _transcribe():
+            try:
+                from transcriber import transcribe_file
+                result = transcribe_file(path)
+                popup.after(0, lambda: _show_result(result))
+            except Exception as e:
+                popup.after(0, lambda: _show_error(str(e)))
+
+        def _show_result(text):
+            if not popup.winfo_exists():
+                return
+            text_area.configure(state=tk.NORMAL)
+            text_area.delete("1.0", tk.END)
+            if text:
+                text_area.insert("1.0", text)
+                status_label.configure(text="Done", fg=COLOR_GREEN)
+            else:
+                text_area.insert("1.0", "No speech detected in file.")
+                status_label.configure(text="No speech detected", fg=COLOR_AMBER)
+            text_area.configure(state=tk.DISABLED)
+
+        def _show_error(err):
+            if not popup.winfo_exists():
+                return
+            text_area.configure(state=tk.NORMAL)
+            text_area.delete("1.0", tk.END)
+            text_area.insert("1.0", f"Error: {err}")
+            text_area.configure(state=tk.DISABLED)
+            status_label.configure(text="Error", fg=COLOR_RED)
+
+        threading.Thread(target=_transcribe, daemon=True).start()
+
+        self._file_popup = popup
 
     # ── Button handlers ───────────────────────────────────────────
 

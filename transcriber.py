@@ -64,6 +64,35 @@ def transcribe(audio: np.ndarray, model_size: str | None = None) -> str:
     return " ".join(text_parts).strip()
 
 
+def transcribe_file(path: str, model_size: str | None = None) -> str:
+    """Transcribe an audio file to text.
+
+    Args:
+        path: Path to an audio file (wav, mp3, m4a, flac, ogg, etc.).
+        model_size: Override model size.
+
+    Returns:
+        Transcribed text string (empty string if no speech detected).
+    """
+    model = _get_model(model_size)
+
+    segments, info = model.transcribe(
+        path,
+        beam_size=WHISPER_BEAM_SIZE,
+        language=WHISPER_LANGUAGE,
+        vad_filter=True,
+        vad_parameters=dict(
+            min_silence_duration_ms=500,
+        ),
+    )
+
+    text_parts = []
+    for segment in segments:
+        text_parts.append(segment.text.strip())
+
+    return " ".join(text_parts).strip()
+
+
 def preload(model_size: str | None = None) -> None:
     """Pre-load the model (call from background thread at startup)."""
     _get_model(model_size)
